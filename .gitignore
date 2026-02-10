@@ -1,0 +1,28 @@
+node_modules/
+dist/
+dist-electron/
+build/
+.vite/
+*.node
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+firebase-debug.log
+
+# Claude
+.claude/
+
+# Environment
+.env
+.env.*
+
+# OS
+Desktop.ini
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
