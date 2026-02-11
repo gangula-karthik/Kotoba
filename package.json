@@ -16,6 +16,7 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "@ricky0123/vad-web": "^0.0.30",
     "node-addon-api": "^8.3.1",
     "radix-ui": "^1.4.3"
   },
@@ -25,8 +26,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "concurrently": "^9.1.2",
-    "electron": "^33.3.1",
-    "electron-builder": "^25.1.8",
+    "electron": "^40.2.1",
+    "electron-builder": "^26.7.0",
     "lucide-react": "^0.563.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
