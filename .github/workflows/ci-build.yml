@@ -1,0 +1,125 @@
+name: CI — Build Electron apps
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+  workflow_dispatch: {}
+
+jobs:
+  build-linux:
+    name: Build (Linux)
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      NODE_ENV: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install OS deps (apt)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3 pkg-config cmake libgtk-3-0 libx11-6 libx11-dev libxkbfile1 libsecret-1-0 libnss3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build whisper (if applicable)
+        run: npm run whisper:build
+        continue-on-error: true
+
+      - name: Build native addon
+        run: npm run native:build
+
+      - name: Build Electron (Linux)
+        run: npm run electron:build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload dist-electron
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-electron-linux
+          path: dist-electron
+
+  build-windows:
+    name: Build (Windows)
+    runs-on: windows-latest
+    env:
+      CI: true
+      NODE_ENV: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build whisper (if applicable)
+        run: npm run whisper:build
+        continue-on-error: true
+
+      - name: Build native addon
+        run: npm run native:build
+
+      - name: Build Electron (Windows)
+        run: |
+          set CSC_IDENTITY_AUTO_DISCOVERY=false
+          npm run electron:build
+
+      - name: Upload dist-electron
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-electron-windows
+          path: dist-electron
+
+  build-macos:
+    name: Build (macOS)
+    runs-on: macos-latest
+    env:
+      CI: true
+      NODE_ENV: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build whisper (if applicable)
+        run: npm run whisper:build
+        continue-on-error: true
+
+      - name: Build native addon
+        run: npm run native:build
+
+      - name: Build Electron (macOS)
+        run: npm run electron:build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload dist-electron
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-electron-macos
+          path: dist-electron
