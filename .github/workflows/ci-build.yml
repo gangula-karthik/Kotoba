@@ -80,12 +80,12 @@ jobs:
       - name: Ensure whisper.cpp is present (Windows)
         shell: powershell
         run: |
-          if (!(Test-Path -Path native\src\whisper.cpp -PathType Container) -or !(Test-Path -Path native\src\whisper.cpp\include\whisper.h -PathType Leaf)) {
-            Write-Host "whisper.cpp not found — cloning..."
-            Remove-Item -Recurse -Force native\src\whisper.cpp -ErrorAction SilentlyContinue
-            git clone --depth 1 https://github.com/ggerganov/whisper.cpp native\src\whisper.cpp
+          if (!(Test-Path -Path 'native/src/whisper.cpp' -PathType Container) -or !(Test-Path -Path 'native/src/whisper.cpp/include/whisper.h' -PathType Leaf)) {
+            Write-Host 'whisper.cpp not found — cloning...'
+            Remove-Item -Recurse -Force 'native/src/whisper.cpp' -ErrorAction SilentlyContinue
+            git clone --depth 1 https://github.com/ggerganov/whisper.cpp 'native/src/whisper.cpp'
           } else {
-            Write-Host "whisper.cpp present"
+            Write-Host 'whisper.cpp present'
           }
 
       - name: Build whisper (required)
