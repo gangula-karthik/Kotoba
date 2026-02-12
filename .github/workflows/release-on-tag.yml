@@ -19,7 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -37,9 +36,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential python3 pkg-config cmake libgtk-3-0 libx11-6 libx11-dev libxkbfile1 libsecret-1-0 libnss3
 
-      - name: Build whisper (optional)
+      - name: Ensure whisper.cpp is present
+        run: |
+          if [ ! -d native/src/whisper.cpp ] || [ ! -f native/src/whisper.cpp/include/whisper.h ]; then
+            echo "whisper.cpp not found — cloning..."
+            rm -rf native/src/whisper.cpp
+            git clone --depth 1 https://github.com/ggerganov/whisper.cpp native/src/whisper.cpp
+          else
+            echo "whisper.cpp present"
+          fi
+
+      - name: Build whisper (required)
         run: npm run whisper:build
-        continue-on-error: true
 
       - name: Build native addon
         run: npm run native:build
