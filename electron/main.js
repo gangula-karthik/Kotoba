@@ -9,6 +9,8 @@ const {
   nativeImage,
   screen,
   clipboard,
+  session,
+  systemPreferences,
 } = require("electron");
 const path = require("path");
 const { exec } = require("child_process");
@@ -263,7 +265,30 @@ ipcMain.handle("app:getPlatform", async () => {
 
 // ── App Lifecycle ────────────────────────────────────────────────────
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Grant microphone permission to the renderer process
+  session.defaultSession.setPermissionRequestHandler(
+    (_webContents, permission, callback) => {
+      callback(permission === "media");
+    }
+  );
+  session.defaultSession.setPermissionCheckHandler(
+    (_webContents, permission) => {
+      return permission === "media";
+    }
+  );
+
+  // On macOS, request microphone access at the OS level
+  if (process.platform === "darwin") {
+    const micStatus = systemPreferences.getMediaAccessStatus("microphone");
+    if (micStatus !== "granted") {
+      const granted = await systemPreferences.askForMediaAccess("microphone");
+      if (!granted) {
+        console.warn("Microphone access was denied by the user");
+      }
+    }
+  }
+
   createWindow();
   createTray();
 

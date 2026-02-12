@@ -17,6 +17,9 @@ export default function App() {
   const [isHovered, setIsHovered] = useState(false);
   const streamRef = useRef(null);
   const isRecordingRef = useRef(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const audioContextRef = useRef(null);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -35,8 +38,22 @@ export default function App() {
   const startRecording = useCallback(async () => {
     if (isRecordingRef.current) return;
     try {
+      // Create AudioContext inside user gesture so it starts in "running" state
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = audioCtx;
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+
+      // Start capturing audio data
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.start(250); // collect chunks every 250ms
+      mediaRecorderRef.current = recorder;
+
       if (window.electronAPI) window.electronAPI.startRecording();
       setIsRecording(true);
     } catch (err) {
@@ -46,9 +63,28 @@ export default function App() {
 
   const stopRecording = useCallback(() => {
     if (!isRecordingRef.current) return;
+
+    // Stop the MediaRecorder and collect final audio
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
+        console.log(
+          `Audio recorded: ${(blob.size / 1024).toFixed(1)} KB, type: ${blob.mimeType}`
+        );
+        audioChunksRef.current = [];
+      };
+      recorder.stop();
+      mediaRecorderRef.current = null;
+    }
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
     }
     setIsRecording(false);
     if (window.electronAPI) window.electronAPI.stopAndPaste();
@@ -154,7 +190,7 @@ export default function App() {
         )}
 
         {state === "recording" && (
-          <AudioWave isRecording={isRecording} stream={streamRef.current} />
+          <AudioWave isRecording={isRecording} stream={streamRef.current} audioContext={audioContextRef.current} />
         )}
       </div>
     </div>

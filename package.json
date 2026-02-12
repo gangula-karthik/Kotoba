@@ -47,10 +47,10 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "native/**/*",
       "build/**/*",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "!native/src/**/*"
     ],
     "mac": {
       "category": "public.app-category.productivity",
@@ -61,8 +61,10 @@
         }
       ],
       "darkModeSupport": true,
+      "identity": null,
       "extendInfo": {
-        "LSUIElement": true
+        "LSUIElement": true,
+        "NSMicrophoneUsageDescription": "OpenWisprFlow needs microphone access for speech-to-text dictation."
       }
     },
     "win": {

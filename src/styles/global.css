@@ -283,16 +283,16 @@
 /* ── Idle state ─────────────────────────────────────────────── */
 
 .dictation-bar--idle {
-  width: 60px;
-  height: 6px;
+  width: 160px;
+  height: 10px;
   background: oklch(1 0 0 / 0.70);
-  border: 1px solid oklch(0 0 0 / 0.08);
+  border: 2px solid oklch(0 0 0 / 0.15);
   opacity: 1;
 }
 
 .dark .dictation-bar--idle {
   background: oklch(0 0 0 / 0.85);
-  border: 1px solid oklch(1 0 0 / 0.08);
+  border: 2px solid oklch(1 0 0 / 0.15);
 }
 
 .dictation-bar__idle-dot {
@@ -307,7 +307,7 @@
   height: 36px;
   padding: 0 16px;
   background: var(--background);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   opacity: 1;
 }
 
@@ -333,10 +333,10 @@
 /* ── Recording state ────────────────────────────────────────── */
 
 .dictation-bar--recording {
-  width: 200px;
-  height: 40px;
+  width: 220px;
+  height: 36px;
   padding: 0 16px;
   background: var(--background);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   opacity: 1;
 }

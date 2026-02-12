@@ -3,15 +3,17 @@ import React, { useEffect, useRef } from "react";
 const BAR_COUNT = 32;
 const SMOOTHING = 0.6;
 
-const AudioWave = ({ isRecording = false, stream = null }) => {
+const AudioWave = ({ isRecording = false, stream = null, audioContext = null }) => {
   const containerRef = useRef(null);
   const analyserRef = useRef(null);
   const dataArrayRef = useRef(null);
   const animationRef = useRef(null);
   const prevHeightsRef = useRef(new Float32Array(BAR_COUNT).fill(3));
+  const sourceRef = useRef(null);
+  const gainRef = useRef(null);
 
   useEffect(() => {
-    if (!isRecording || !stream) {
+    if (!isRecording || !stream || !audioContext) {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
@@ -20,7 +22,6 @@ const AudioWave = ({ isRecording = false, stream = null }) => {
       return;
     }
 
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.75;
@@ -30,8 +31,17 @@ const AudioWave = ({ isRecording = false, stream = null }) => {
     analyserRef.current = analyser;
     dataArrayRef.current = dataArray;
 
+    // Connect: source → analyser → silent gain → destination
+    // The destination connection ensures Chromium actually processes the audio graph
     const source = audioContext.createMediaStreamSource(stream);
+    const gain = audioContext.createGain();
+    gain.gain.value = 0; // silent — no speaker output
     source.connect(analyser);
+    analyser.connect(gain);
+    gain.connect(audioContext.destination);
+
+    sourceRef.current = source;
+    gainRef.current = gain;
 
     const updateWave = () => {
       if (!analyserRef.current || !dataArrayRef.current || !containerRef.current)
@@ -72,11 +82,14 @@ const AudioWave = ({ isRecording = false, stream = null }) => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
-      if (audioContext.state !== "closed") {
-        audioContext.close();
-      }
+      // Disconnect nodes (audioContext lifecycle is managed by App)
+      source.disconnect();
+      analyser.disconnect();
+      gain.disconnect();
+      sourceRef.current = null;
+      gainRef.current = null;
     };
-  }, [isRecording, stream]);
+  }, [isRecording, stream, audioContext]);
 
   return (
     <div
