@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { MicVAD } from "@ricky0123/vad-web";
 import AudioWave from "./components/AudioWave";
 
 function getSystemTheme() {
@@ -15,11 +16,14 @@ function applyTheme(theme) {
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const isSpeakingRef = useRef(false);
   const streamRef = useRef(null);
   const isRecordingRef = useRef(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const audioContextRef = useRef(null);
+  const vadRef = useRef(null);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -56,6 +60,54 @@ export default function App() {
 
       if (window.electronAPI) window.electronAPI.startRecording();
       setIsRecording(true);
+      isSpeakingRef.current = false;
+      setIsSpeaking(false); // start paused, VAD will activate on real speech
+
+      // Initialize VAD for auto pause/resume
+      try {
+        const vad = await MicVAD.new({
+          baseAssetPath: "/",
+          onnxWASMBasePath: "/",
+          model: "v5",
+          positiveSpeechThreshold: 0.9,
+          negativeSpeechThreshold: 0.5,
+          minSpeechFrames: 3,
+          redemptionFrames: 5,
+          getStream: async () => stream,
+          pauseStream: async () => {},
+          resumeStream: async () => stream,
+          onSpeechStart: () => {
+            isSpeakingRef.current = true; // instant — read by animation loop
+            setIsSpeaking(true); // triggers opacity transition
+            if (mediaRecorderRef.current?.state === "paused") {
+              mediaRecorderRef.current.resume();
+            }
+          },
+          onSpeechEnd: () => {
+            isSpeakingRef.current = false;
+            setIsSpeaking(false);
+            if (mediaRecorderRef.current?.state === "recording") {
+              mediaRecorderRef.current.pause();
+            }
+          },
+          onVADMisfire: () => {
+            isSpeakingRef.current = false;
+            setIsSpeaking(false);
+            if (mediaRecorderRef.current?.state === "recording") {
+              mediaRecorderRef.current.pause();
+            }
+          },
+        });
+        vadRef.current = vad;
+        // Pause recorder now that VAD is ready — let VAD resume on speech
+        if (mediaRecorderRef.current?.state === "recording") {
+          mediaRecorderRef.current.pause();
+        }
+      } catch (vadErr) {
+        console.warn("VAD init failed, recording without VAD:", vadErr);
+        isSpeakingRef.current = true;
+        setIsSpeaking(true); // fallback: record everything if VAD fails
+      }
     } catch (err) {
       console.error("Microphone access denied:", err);
     }
@@ -63,6 +115,12 @@ export default function App() {
 
   const stopRecording = useCallback(() => {
     if (!isRecordingRef.current) return;
+
+    // Destroy VAD first (before stopping the stream it depends on)
+    if (vadRef.current) {
+      vadRef.current.destroy().catch(() => {});
+      vadRef.current = null;
+    }
 
     // Stop the MediaRecorder and collect final audio
     const recorder = mediaRecorderRef.current;
@@ -87,6 +145,8 @@ export default function App() {
       audioContextRef.current = null;
     }
     setIsRecording(false);
+    isSpeakingRef.current = false;
+    setIsSpeaking(false);
     if (window.electronAPI) window.electronAPI.stopAndPaste();
   }, []);
 
@@ -190,7 +250,7 @@ export default function App() {
         )}
 
         {state === "recording" && (
-          <AudioWave isRecording={isRecording} stream={streamRef.current} audioContext={audioContextRef.current} />
+          <AudioWave isRecording={isRecording} isSpeaking={isSpeaking} isSpeakingRef={isSpeakingRef} stream={streamRef.current} audioContext={audioContextRef.current} />
         )}
       </div>
     </div>

@@ -62,6 +62,14 @@ function createWindow() {
   // Keep window visible across all workspaces/spaces
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
+  // Pipe renderer console to terminal in dev
+  if (isDev) {
+    mainWindow.webContents.on("console-message", (_e, level, msg) => {
+      const tag = ["LOG", "WARN", "ERR"][level] || "LOG";
+      console.log(`[renderer:${tag}] ${msg}`);
+    });
+  }
+
   if (isDev) {
     mainWindow.loadURL("http://localhost:5173");
   } else {

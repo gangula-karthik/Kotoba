@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from "react";
 const BAR_COUNT = 32;
 const SMOOTHING = 0.6;
 
-const AudioWave = ({ isRecording = false, stream = null, audioContext = null }) => {
+const AudioWave = ({ isRecording = false, isSpeaking = true, isSpeakingRef, stream = null, audioContext = null }) => {
   const containerRef = useRef(null);
   const analyserRef = useRef(null);
   const dataArrayRef = useRef(null);
@@ -11,6 +11,11 @@ const AudioWave = ({ isRecording = false, stream = null, audioContext = null }) 
   const prevHeightsRef = useRef(new Float32Array(BAR_COUNT).fill(3));
   const sourceRef = useRef(null);
   const gainRef = useRef(null);
+
+  // Fallback: if no ref passed, use prop value via local ref
+  const localRef = useRef(isSpeaking);
+  localRef.current = isSpeaking;
+  const speakingRef = isSpeakingRef || localRef;
 
   useEffect(() => {
     if (!isRecording || !stream || !audioContext) {
@@ -53,19 +58,16 @@ const AudioWave = ({ isRecording = false, stream = null, audioContext = null }) 
       const half = Math.ceil(BAR_COUNT / 2);
       const step = Math.floor(bufferLength / half);
 
-      // Build mirrored heights: center bars get low-freq energy, outer bars get high-freq
       for (let i = 0; i < half; i++) {
-        const value = dataArrayRef.current[i * step] || 0;
+        const value = speakingRef.current ? (dataArrayRef.current[i * step] || 0) : 0;
         const targetHeight = Math.max(3, (value / 255) * 28);
 
-        // Left side (mirrored: outermost = highest freq)
         const leftIdx = half - 1 - i;
         const prevLeft = prevHeightsRef.current[leftIdx];
         const smoothedLeft = prevLeft * SMOOTHING + targetHeight * (1 - SMOOTHING);
         prevHeightsRef.current[leftIdx] = smoothedLeft;
         if (bars[leftIdx]) bars[leftIdx].style.height = `${smoothedLeft}px`;
 
-        // Right side (mirror of left)
         const rightIdx = half + i;
         if (rightIdx < BAR_COUNT) {
           prevHeightsRef.current[rightIdx] = smoothedLeft;
@@ -82,7 +84,6 @@ const AudioWave = ({ isRecording = false, stream = null, audioContext = null }) 
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
-      // Disconnect nodes (audioContext lifecycle is managed by App)
       source.disconnect();
       analyser.disconnect();
       gain.disconnect();
@@ -95,7 +96,7 @@ const AudioWave = ({ isRecording = false, stream = null, audioContext = null }) 
     <div
       ref={containerRef}
       className="flex w-full items-center justify-center gap-[2px]"
-      style={{ height: "100%" }}
+      style={{ height: "100%", opacity: isSpeaking ? 1 : 0.35, transition: "opacity 150ms ease" }}
     >
       {Array.from({ length: BAR_COUNT }, (_, i) => (
         <div
