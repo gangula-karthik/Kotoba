@@ -27,16 +27,14 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Install OS deps (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential python3 pkg-config cmake libgtk-3-0 libx11-6 libx11-dev libxkbfile1 libsecret-1-0 libnss3
 
-      - name: Ensure whisper.cpp is present
+      - name: Ensure whisper.cpp is present (non-Windows)
+        if: matrix.os != 'windows-latest'
         run: |
           if [ ! -d native/src/whisper.cpp ] || [ ! -f native/src/whisper.cpp/include/whisper.h ]; then
             echo "whisper.cpp not found — cloning..."
@@ -46,8 +44,23 @@ jobs:
             echo "whisper.cpp present"
           fi
 
+      - name: Ensure whisper.cpp is present (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          if (!(Test-Path -Path native\src\whisper.cpp -PathType Container) -or !(Test-Path -Path native\src\whisper.cpp\include\whisper.h -PathType Leaf)) {
+            Write-Host "whisper.cpp not found — cloning..."
+            Remove-Item -Recurse -Force native\src\whisper.cpp -ErrorAction SilentlyContinue
+            git clone --depth 1 https://github.com/ggerganov/whisper.cpp native\src\whisper.cpp
+          } else {
+            Write-Host "whisper.cpp present"
+          }
+
       - name: Build whisper (required)
         run: npm run whisper:build
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build native addon
         run: npm run native:build

@@ -31,9 +31,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential python3 pkg-config cmake libgtk-3-0 libx11-6 libx11-dev libxkbfile1 libsecret-1-0 libnss3
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Ensure whisper.cpp is present
         run: |
           if [ ! -d native/src/whisper.cpp ] || [ ! -f native/src/whisper.cpp/include/whisper.h ]; then
@@ -46,6 +43,9 @@ jobs:
 
       - name: Build whisper (required)
         run: npm run whisper:build
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build native addon
         run: npm run native:build
@@ -77,9 +77,6 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Ensure whisper.cpp is present (Windows)
         shell: powershell
         run: |
@@ -93,6 +90,9 @@ jobs:
 
       - name: Build whisper (required)
         run: npm run whisper:build
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build native addon
         run: npm run native:build
@@ -124,9 +124,6 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Ensure whisper.cpp is present (macOS)
         run: |
           if [ ! -d native/src/whisper.cpp ] || [ ! -f native/src/whisper.cpp/include/whisper.h ]; then
@@ -139,6 +136,9 @@ jobs:
 
       - name: Build whisper (required)
         run: npm run whisper:build
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build native addon
         run: npm run native:build
