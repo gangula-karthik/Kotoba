@@ -294,6 +294,22 @@ function getFrontmostAppMac() {
   }
 }
 
+function appendPasteLog(line) {
+  try {
+    const logDir = path.join(app.getPath("home"), "Library", "Logs", "Koto");
+    try {
+      fs.mkdirSync(logDir, { recursive: true });
+    } catch {}
+    const logPath = path.join(logDir, "paste.log");
+    const ts = new Date().toISOString();
+    fs.appendFileSync(logPath, `${ts} ${line}\n`);
+  } catch (err) {
+    try {
+      console.error("Failed to write paste log:", err.message);
+    } catch {}
+  }
+}
+
 function activateAppMac(appInfo) {
   if (process.platform !== "darwin") return;
   if (!appInfo) return;
@@ -372,8 +388,10 @@ function startDictation() {
       modelPath = path.join(__dirname, "../assets/ggml-small.bin");
     } else {
       modelPath = path.join(
-        __dirname,
-        "../app.asar.unpacked/assets/ggml-small.bin"
+        process.resourcesPath,
+        "app.asar.unpacked",
+        "assets",
+        "ggml-small.bin"
       );
     }
 
@@ -483,8 +501,11 @@ ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
       } catch {}
     }
 
+    // Log target app and explicit activation attempt (helpful in packaged app)
+    appendPasteLog(`stopAndPaste: frontmostAtStop=${JSON.stringify(frontmostAtStop)}`);
     // Explicitly activate the target app
     if (process.platform === "darwin") {
+      appendPasteLog(`stopAndPaste: activating ${JSON.stringify(frontmostAtStop)}`);
       activateAppMac(frontmostAtStop);
     }
 
@@ -503,17 +524,22 @@ ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
           const appleScript =
             'tell application "System Events" to keystroke "v" using {command down}';
           try {
-            execFileSync("osascript", ["-e", appleScript], {
+            appendPasteLog("stopAndPaste: running generic osascript paste");
+            const out = execFileSync("osascript", ["-e", appleScript], {
               encoding: "utf8",
               timeout: 5000,
               stdio: ["pipe", "pipe", "pipe"],
             });
+            if (out) appendPasteLog(`stopAndPaste: osascript stdout: ${out}`);
           } catch (osError) {
+            appendPasteLog(`stopAndPaste: osascript error: ${osError.message}`);
+            if (osError.stdout) appendPasteLog(`stopAndPaste: osascript stdout: ${osError.stdout.toString()}`);
+            if (osError.stderr) appendPasteLog(`stopAndPaste: osascript stderr: ${osError.stderr.toString()}`);
             if (
               osError.message?.includes("osascript is not allowed") ||
               osError.message?.includes("1002") ||
-              osError.stderr?.includes("osascript is not allowed") ||
-              osError.stderr?.includes("1002")
+              (osError.stderr && osError.stderr.toString().includes("osascript is not allowed")) ||
+              (osError.stderr && osError.stderr.toString().includes("1002"))
             ) {
               showPasteNotification(text);
             } else {
@@ -598,8 +624,10 @@ ipcMain.handle("whisper:init", async (_event, modelPath) => {
         modelPath = path.join(__dirname, "../assets/ggml-small.bin");
       } else {
         modelPath = path.join(
-          __dirname,
-          "../app.asar.unpacked/assets/ggml-small.bin"
+          process.resourcesPath,
+          "app.asar.unpacked",
+          "assets",
+          "ggml-small.bin"
         );
       }
     }

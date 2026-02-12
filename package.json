@@ -55,7 +55,8 @@
       "!native/src/**/*"
     ],
     "asarUnpack": [
-      "assets/**/*"
+      "assets/**/*",
+      "build/**/*"
     ],
     "mac": {
       "category": "public.app-category.productivity",
@@ -68,7 +69,8 @@
       "darkModeSupport": true,
       "identity": null,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Koto needs microphone access for speech-to-text dictation."
+        "NSMicrophoneUsageDescription": "Koto needs microphone access for speech-to-text dictation.",
+        "NSAppleEventsUsageDescription": "Koto needs to send paste commands to other apps to insert dictation text."
       }
     },
     "win": {

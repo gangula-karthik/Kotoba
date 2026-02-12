@@ -23,6 +23,7 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechEndTimeout, setSpeechEndTimeout] = useState(null);
   const isSpeakingRef = useRef(false);
   const streamRef = useRef(null);
   const isRecordingRef = useRef(false);
@@ -34,7 +35,16 @@ export default function App() {
 
   const windowMode = getWindowMode();
 
-  // Keep ref in sync with state
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (speechEndTimeout) {
+        clearTimeout(speechEndTimeout);
+      }
+    };
+  }, [speechEndTimeout]);
+
+  // Keep isRecordingRef in sync with isRecording state
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
@@ -88,6 +98,11 @@ export default function App() {
             if (mediaRecorderRef.current?.state === "paused") {
               mediaRecorderRef.current.resume();
             }
+            // Clear any pending timeout when speech starts
+            if (speechEndTimeout) {
+              clearTimeout(speechEndTimeout);
+              setSpeechEndTimeout(null);
+            }
           },
           onSpeechEnd: () => {
             isSpeakingRef.current = false;
@@ -95,6 +110,11 @@ export default function App() {
             if (mediaRecorderRef.current?.state === "recording") {
               mediaRecorderRef.current.pause();
             }
+            // Start timeout to auto-stop recording after 2 seconds of silence
+            const timeout = setTimeout(() => {
+              stopRecording();
+            }, 2000);
+            setSpeechEndTimeout(timeout);
           },
           onVADMisfire: () => {
             isSpeakingRef.current = false;
@@ -120,6 +140,12 @@ export default function App() {
 
   const stopRecording = useCallback(async () => {
     if (!isRecordingRef.current) return;
+
+    // Clear any pending speech end timeout
+    if (speechEndTimeout) {
+      clearTimeout(speechEndTimeout);
+      setSpeechEndTimeout(null);
+    }
 
     if (vadRef.current) {
       vadRef.current.destroy().catch(() => {});
@@ -215,7 +241,7 @@ export default function App() {
     }
   }, [startRecording, stopRecording]);
 
-  // Listen for toggle events from main process (Alt+Space)
+  // Listen for toggle events from main process (legacy - no longer used)
   useEffect(() => {
     if (windowMode !== "dictation") return;
     if (!window.electronAPI) return;
@@ -225,26 +251,24 @@ export default function App() {
     return () => cleanupToggle();
   }, [toggleRecording, windowMode]);
 
-  // Option key hold to record (push-to-talk)
+  // Option key hold to record (push-to-talk) - via main process global monitor
   useEffect(() => {
     if (windowMode !== "dictation") return;
-    const handleKeyDown = (e) => {
-      if (e.key === "Alt" && !isRecordingRef.current) {
-        e.preventDefault();
-        startRecording();
-      }
-    };
-    const handleKeyUp = (e) => {
-      if (e.key === "Alt" && isRecordingRef.current) {
-        e.preventDefault();
-        stopRecording();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
+    if (!window.electronAPI?.onOptionKeyDown) return;
+
+    const cleanupDown = window.electronAPI.onOptionKeyDown(async () => {
+      if (isRecordingRef.current) return;
+      await window.electronAPI.captureFrontmostApp();
+      startRecording();
+    });
+    const cleanupUp = window.electronAPI.onOptionKeyUp(() => {
+      if (!isRecordingRef.current) return;
+      stopRecording();
+    });
+
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
+      cleanupDown();
+      cleanupUp();
     };
   }, [startRecording, stopRecording, windowMode]);
 

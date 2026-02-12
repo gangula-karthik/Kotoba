@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   stopRecording: () => ipcRenderer.invoke("dictation:stop"),
   stopAndPaste: (text) => ipcRenderer.invoke("dictation:stopAndPaste", text),
   getTranscription: () => ipcRenderer.invoke("dictation:getTranscription"),
+  captureFrontmostApp: () => ipcRenderer.invoke("dictation:captureFrontmostApp"),
   hideWindow: () => ipcRenderer.send("dictation:hide"),
   setIgnoreMouseEvents: (ignore, opts) =>
     ipcRenderer.send("window:set-ignore-mouse-events", ignore, opts),
@@ -30,6 +31,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const handler = () => callback();
     ipcRenderer.on("dictation:force-stop", handler);
     return () => ipcRenderer.removeListener("dictation:force-stop", handler);
+  },
+  onOptionKeyDown: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("option-key:down", handler);
+    return () => ipcRenderer.removeListener("option-key:down", handler);
+  },
+  onOptionKeyUp: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("option-key:up", handler);
+    return () => ipcRenderer.removeListener("option-key:up", handler);
   },
 
   // Native C++ backend calls

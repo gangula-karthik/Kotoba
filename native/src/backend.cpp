@@ -11,6 +11,7 @@
 #include <sys/sysctl.h>
 #include <sys/types.h>
 #include <mach/mach.h>
+#include <CoreGraphics/CoreGraphics.h>
 #else
 #include <unistd.h>
 #endif
@@ -181,6 +182,17 @@ void cleanup_whisper() {
         g_whisper_ctx = nullptr;
     }
     g_whisper_initialized = false;
+}
+
+// ── Modifier Key Detection ──────────────────────────────────────────
+
+bool is_option_key_pressed() {
+#ifdef __APPLE__
+    CGEventFlags flags = CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState);
+    return (flags & kCGEventFlagMaskAlternate) != 0;
+#else
+    return false;
+#endif
 }
 
 } // namespace koto

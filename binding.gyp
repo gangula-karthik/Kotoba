@@ -29,7 +29,8 @@
               "OTHER_LDFLAGS": [
                 "-L<(module_root_dir)/native/src/whisper.cpp/build/src",
                 "-lwhisper",
-                "-Wl,-rpath,<(module_root_dir)/native/src/whisper.cpp/build/src"
+                "-Wl,-rpath,<(module_root_dir)/native/src/whisper.cpp/build/src",
+                "-framework", "CoreGraphics"
               ]
             }
           }

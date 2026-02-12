@@ -118,6 +118,14 @@ Napi::Value CleanupWhisper(const Napi::CallbackInfo& info) {
     return env.Undefined();
 }
 
+// ── isOptionKeyPressed ──────────────────────────────────────────────
+
+Napi::Value IsOptionKeyPressed(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    bool pressed = koto::is_option_key_pressed();
+    return Napi::Boolean::New(env, pressed);
+}
+
 // ── Module init ──────────────────────────────────────────────────────
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
@@ -127,6 +135,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("initWhisper",   Napi::Function::New(env, InitWhisper));
     exports.Set("transcribeAudio", Napi::Function::New(env, TranscribeAudio));
     exports.Set("cleanupWhisper", Napi::Function::New(env, CleanupWhisper));
+    exports.Set("isOptionKeyPressed", Napi::Function::New(env, IsOptionKeyPressed));
     return exports;
 }
 

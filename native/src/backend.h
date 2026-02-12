@@ -49,4 +49,9 @@ WhisperResult transcribe_audio(const std::vector<float>& audio_samples, const st
 // Cleanup whisper resources
 void cleanup_whisper();
 
+// ── Modifier Key Detection ──────────────────────────────────────────
+
+// Check if the Option (Alt) key is currently pressed (macOS only)
+bool is_option_key_pressed();
+
 } // namespace koto
