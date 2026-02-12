@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cmath>
 #include <thread>
+#include <memory>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -14,7 +15,15 @@
 #include <unistd.h>
 #endif
 
+// Whisper includes
+#include "whisper.cpp/include/whisper.h"
+
 namespace openwisprflow {
+
+// ── Whisper state ───────────────────────────────────────────────────
+
+static struct whisper_context* g_whisper_ctx = nullptr;
+static bool g_whisper_initialized = false;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -95,6 +104,83 @@ ComputeResult compute(double input) {
         result += std::sin(input + static_cast<double>(i) * 0.000001);
     }
     return { result, "native-cpp" };
+}
+
+// ── Whisper implementation ──────────────────────────────────────────
+
+bool init_whisper(const std::string& model_path) {
+    if (g_whisper_initialized) {
+        return true; // Already initialized
+    }
+
+    // Initialize whisper context
+    whisper_context_params cparams = whisper_context_default_params();
+    g_whisper_ctx = whisper_init_from_file_with_params(model_path.c_str(), cparams);
+
+    if (g_whisper_ctx == nullptr) {
+        return false;
+    }
+
+    g_whisper_initialized = true;
+    return true;
+}
+
+WhisperResult transcribe_audio(const std::vector<float>& audio_samples) {
+    if (!g_whisper_initialized || g_whisper_ctx == nullptr) {
+        return {"", false, "Whisper not initialized"};
+    }
+
+    if (audio_samples.empty()) {
+        return {"", false, "No audio samples provided"};
+    }
+
+    // Set up parameters for transcription
+    whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+    wparams.print_realtime   = false;
+    wparams.print_progress   = false;
+    wparams.print_timestamps = false;
+    wparams.print_special    = false;
+    wparams.translate        = false;
+    wparams.language         = "en";  // English
+    wparams.n_threads        = std::min(4, get_cpu_cores());  // Use up to 4 threads
+    wparams.offset_ms        = 0;
+    wparams.duration_ms      = 0;    // Process entire audio
+    wparams.n_max_text_ctx   = -1;
+    wparams.max_len          = 0;
+    wparams.split_on_word    = false;
+    wparams.no_context       = true; // Faster for real-time
+    wparams.single_segment   = true; // Single segment for simplicity
+
+    // Run transcription
+    int result = whisper_full(g_whisper_ctx, wparams, audio_samples.data(), static_cast<int>(audio_samples.size()));
+
+    if (result != 0) {
+        return {"", false, "Transcription failed"};
+    }
+
+    // Get the transcribed text
+    int n_segments = whisper_full_n_segments(g_whisper_ctx);
+    std::string full_text;
+
+    for (int i = 0; i < n_segments; ++i) {
+        const char* segment_text = whisper_full_get_segment_text(g_whisper_ctx, i);
+        if (segment_text) {
+            if (!full_text.empty()) {
+                full_text += " ";
+            }
+            full_text += segment_text;
+        }
+    }
+
+    return {full_text, true, ""};
+}
+
+void cleanup_whisper() {
+    if (g_whisper_ctx != nullptr) {
+        whisper_free(g_whisper_ctx);
+        g_whisper_ctx = nullptr;
+    }
+    g_whisper_initialized = false;
 }
 
 } // namespace openwisprflow

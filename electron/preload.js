@@ -4,7 +4,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Dictation APIs
   startRecording: () => ipcRenderer.invoke("dictation:start"),
   stopRecording: () => ipcRenderer.invoke("dictation:stop"),
-  stopAndPaste: () => ipcRenderer.invoke("dictation:stopAndPaste"),
+  stopAndPaste: (text) => ipcRenderer.invoke("dictation:stopAndPaste", text),
   getTranscription: () => ipcRenderer.invoke("dictation:getTranscription"),
   hideWindow: () => ipcRenderer.send("dictation:hide"),
   setIgnoreMouseEvents: (ignore, opts) =>
@@ -36,6 +36,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   ping: () => ipcRenderer.invoke("native:ping"),
   getSystemInfo: () => ipcRenderer.invoke("native:getSystemInfo"),
   compute: (input) => ipcRenderer.invoke("native:compute", input),
+
+  // Whisper speech-to-text APIs
+  initWhisper: (modelPath) => ipcRenderer.invoke("whisper:init", modelPath),
+  transcribeAudio: (audioData) => ipcRenderer.invoke("whisper:transcribe", audioData),
+  setTranscription: (text) => ipcRenderer.invoke("whisper:setTranscription", text),
+  cleanupWhisper: () => ipcRenderer.invoke("whisper:cleanup"),
 
   // App-level queries
   getTheme: () => ipcRenderer.invoke("app:getTheme"),

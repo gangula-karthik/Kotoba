@@ -32,4 +32,21 @@ ComputeResult compute(double input);
 
 std::string ping();
 
+// ── Whisper Speech-to-Text ──────────────────────────────────────────
+
+struct WhisperResult {
+    std::string text;
+    bool        success;
+    std::string error_message;
+};
+
+// Initialize whisper with the small model
+bool init_whisper(const std::string& model_path = "models/ggml-small.bin");
+
+// Process audio data (expects 16kHz float samples)
+WhisperResult transcribe_audio(const std::vector<float>& audio_samples);
+
+// Cleanup whisper resources
+void cleanup_whisper();
+
 } // namespace openwisprflow

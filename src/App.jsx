@@ -24,6 +24,7 @@ export default function App() {
   const audioChunksRef = useRef([]);
   const audioContextRef = useRef(null);
   const vadRef = useRef(null);
+  const transcriptionRef = useRef(""); // Store transcription result
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -113,7 +114,7 @@ export default function App() {
     }
   }, []);
 
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback(async () => {
     if (!isRecordingRef.current) return;
 
     // Destroy VAD first (before stopping the stream it depends on)
@@ -122,18 +123,78 @@ export default function App() {
       vadRef.current = null;
     }
 
-    // Stop the MediaRecorder and collect final audio
+    // Stop the MediaRecorder and collect final audio (and wait for transcription)
     const recorder = mediaRecorderRef.current;
+    let finalText = transcriptionRef.current || "";
     if (recorder && recorder.state !== "inactive") {
-      recorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
-        console.log(
-          `Audio recorded: ${(blob.size / 1024).toFixed(1)} KB, type: ${blob.mimeType}`
-        );
-        audioChunksRef.current = [];
-      };
+      const transcriptionDone = new Promise((resolve) => {
+        recorder.onstop = async () => {
+          const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
+          console.log(
+            `Audio recorded: ${(blob.size / 1024).toFixed(1)} KB, type: ${blob.mimeType}`
+          );
+
+          // Convert blob to Float32Array for whisper
+          try {
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+            // Convert to mono and resample to 16kHz if needed
+            const sampleRate = audioBuffer.sampleRate;
+            const channelData = audioBuffer.getChannelData(0); // Use first channel (mono)
+
+            // Whisper expects 16kHz float samples
+            let audioData = channelData;
+            if (sampleRate !== 16000) {
+              // Simple resampling (for better quality, use a proper resampler)
+              const ratio = 16000 / sampleRate;
+              const newLength = Math.floor(channelData.length * ratio);
+              audioData = new Float32Array(newLength);
+              for (let i = 0; i < newLength; i++) {
+                const srcIndex = i / ratio;
+                const srcIndexInt = Math.floor(srcIndex);
+                const fraction = srcIndex - srcIndexInt;
+                if (srcIndexInt + 1 < channelData.length) {
+                  audioData[i] =
+                    channelData[srcIndexInt] * (1 - fraction) +
+                    channelData[srcIndexInt + 1] * fraction;
+                } else {
+                  audioData[i] = channelData[srcIndexInt];
+                }
+              }
+            }
+
+            // Send to main process for transcription
+            if (window.electronAPI) {
+              const result = await window.electronAPI.transcribeAudio(audioData);
+              if (result.success) {
+                finalText = result.text;
+                transcriptionRef.current = result.text;
+                await window.electronAPI.setTranscription(result.text);
+                console.log("Transcription:", result.text);
+              } else {
+                console.error("Transcription failed:", result.errorMessage);
+                finalText = "";
+                transcriptionRef.current = "";
+                await window.electronAPI.setTranscription("");
+              }
+            }
+
+            audioContext.close();
+          } catch (error) {
+            console.error("Error processing audio:", error);
+          }
+
+          audioChunksRef.current = [];
+          resolve();
+        };
+      });
       recorder.stop();
       mediaRecorderRef.current = null;
+
+      // Wait for transcription to finish before pasting.
+      await transcriptionDone;
     }
 
     if (streamRef.current) {
@@ -147,7 +208,7 @@ export default function App() {
     setIsRecording(false);
     isSpeakingRef.current = false;
     setIsSpeaking(false);
-    if (window.electronAPI) window.electronAPI.stopAndPaste();
+    if (window.electronAPI) await window.electronAPI.stopAndPaste(finalText);
   }, []);
 
   const toggleRecording = useCallback(async () => {

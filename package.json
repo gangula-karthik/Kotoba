@@ -52,6 +52,9 @@
       "package.json",
       "!native/src/**/*"
     ],
+    "asarUnpack": [
+      "assets/**/*"
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
