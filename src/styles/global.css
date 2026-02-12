@@ -341,9 +341,9 @@
   opacity: 1;
 }
 
-/* ── Onboarding ─────────────────────────────────────────────── */
+/* ── Settings ───────────────────────────────────────────────── */
 
-.onboarding-wrapper {
+.settings-wrapper {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -352,7 +352,7 @@
   font-family: var(--font-sans);
 }
 
-.onboarding-drag-handle {
+.settings-drag-handle {
   height: 28px;
   flex-shrink: 0;
   -webkit-app-region: drag;

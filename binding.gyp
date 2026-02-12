@@ -1,7 +1,7 @@
 {
   "targets": [
     {
-      "target_name": "openwisprflow_native",
+      "target_name": "koto_native",
       "sources": [
         "native/src/addon.cpp",
         "native/src/backend.cpp"

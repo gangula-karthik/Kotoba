@@ -18,7 +18,7 @@
 // Whisper includes
 #include "whisper.cpp/include/whisper.h"
 
-namespace openwisprflow {
+namespace koto {
 
 // ── Whisper state ───────────────────────────────────────────────────
 
@@ -183,4 +183,4 @@ void cleanup_whisper() {
     g_whisper_initialized = false;
 }
 
-} // namespace openwisprflow
+} // namespace koto

@@ -1,8 +1,8 @@
 {
-  "name": "openwisprflow",
+  "name": "koto",
   "version": "1.0.0",
-  "description": "OpenWisprFlow - Speech-to-Text Dictation App",
-  "author": "OpenWisprFlow Team",
+  "description": "Koto - Speech-to-Text Dictation App",
+  "author": "Karthik Gangula",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -40,8 +40,8 @@
     "wait-on": "^8.0.3"
   },
   "build": {
-    "appId": "com.openwisprflow.app",
-    "productName": "OpenWisprFlow",
+    "appId": "com.koto.app",
+    "productName": "Koto",
     "icon": "dither_it_emojis.com wizard-bear.png",
     "directories": {
       "output": "dist-electron"
@@ -68,8 +68,7 @@
       "darkModeSupport": true,
       "identity": null,
       "extendInfo": {
-        "LSUIElement": true,
-        "NSMicrophoneUsageDescription": "OpenWisprFlow needs microphone access for speech-to-text dictation."
+        "NSMicrophoneUsageDescription": "Koto needs microphone access for speech-to-text dictation."
       }
     },
     "win": {

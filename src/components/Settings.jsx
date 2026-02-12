@@ -40,7 +40,6 @@ const LANGUAGES = [
   { name: "Bulgarian", code: "bg" },
   { name: "Lithuanian", code: "lt" },
   { name: "Latin", code: "la" },
-  { name: "Māori", code: "mi" },
   { name: "Malayalam", code: "ml" },
   { name: "Welsh", code: "cy" },
   { name: "Slovak", code: "sk" },
@@ -144,7 +143,6 @@ function LanguageDropdown({ value, onChange }) {
     );
   }, [search]);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -157,14 +155,12 @@ function LanguageDropdown({ value, onChange }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Focus search when opened
   useEffect(() => {
     if (open && searchRef.current) {
       searchRef.current.focus();
     }
   }, [open]);
 
-  // Scroll selected item into view when opened
   useEffect(() => {
     if (open && listRef.current) {
       const selected = listRef.current.querySelector("[data-selected='true']");
@@ -239,18 +235,21 @@ function LanguageDropdown({ value, onChange }) {
   );
 }
 
-export default function Onboarding() {
+export default function Settings() {
   const [permissions, setPermissions] = useState({
     microphone: "not-determined",
     accessibility: false,
   });
   const [selectedLanguage, setSelectedLanguage] = useState("en");
-  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
 
-  // Load permissions on mount
+  // Load settings and permissions on mount
   useEffect(() => {
     if (!window.electronAPI) return;
     window.electronAPI.getPermissions().then(setPermissions);
+    window.electronAPI.getSettings().then((s) => {
+      if (s.language) setSelectedLanguage(s.language);
+    });
   }, []);
 
   // Poll permissions every 2s to catch changes made in System Preferences
@@ -274,27 +273,29 @@ export default function Onboarding() {
     setPermissions((p) => ({ ...p, accessibility: granted }));
   }, []);
 
-  const handleComplete = useCallback(async () => {
-    if (!window.electronAPI) return;
-    setLoading(true);
-    await window.electronAPI.completeOnboarding({ language: selectedLanguage });
-  }, [selectedLanguage]);
+  const handleLanguageChange = useCallback(async (code) => {
+    setSelectedLanguage(code);
+    setSaved(false);
+    if (window.electronAPI) {
+      await window.electronAPI.setSettings({ language: code });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  }, []);
 
   const micGranted = permissions.microphone === "granted";
 
   return (
-    <div className="onboarding-wrapper">
-      {/* Drag handle — only the top bar area */}
-      <div className="onboarding-drag-handle" />
+    <div className="settings-wrapper">
+      {/* Drag handle */}
+      <div className="settings-drag-handle" />
 
       {/* Header */}
       <div className="px-6 pt-6 pb-4">
         <h1 className="text-base font-medium text-foreground">
-          openwisprflow
+          koto
         </h1>
-        <p className="text-xs text-muted-foreground mt-1">
-          Speech-to-text dictation setup
-        </p>
+        <p className="text-xs text-muted-foreground mt-1">Settings</p>
       </div>
 
       {/* Permissions */}
@@ -322,7 +323,7 @@ export default function Onboarding() {
         </div>
         {!micGranted && (
           <p className="text-xs text-destructive mt-2">
-            Microphone access is required to continue.
+            Microphone access is required for dictation.
           </p>
         )}
       </div>
@@ -334,23 +335,30 @@ export default function Onboarding() {
         </h2>
         <LanguageDropdown
           value={selectedLanguage}
-          onChange={setSelectedLanguage}
+          onChange={handleLanguageChange}
         />
+        {saved && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Language saved.
+          </p>
+        )}
       </div>
 
-      {/* Footer */}
-      <div className="px-6 pb-6 pt-2">
-        <button
-          onClick={handleComplete}
-          disabled={!micGranted || loading}
-          className={`w-full py-2 text-sm font-medium transition-colors cursor-pointer ${
-            micGranted && !loading
-              ? "bg-foreground text-background hover:bg-foreground/90"
-              : "bg-muted text-muted-foreground cursor-not-allowed"
-          }`}
-        >
-          {loading ? "Starting..." : "Get Started"}
-        </button>
+      {/* Keyboard Shortcut */}
+      <div className="px-6 pb-4">
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+          Keyboard Shortcut
+        </h2>
+        <div className="border border-border px-3 py-2 flex items-center justify-between">
+          <span className="text-sm text-foreground">Toggle Dictation</span>
+          <kbd className="text-xs px-2 py-0.5 border border-border bg-muted text-foreground font-mono">
+            &#x2325; Space
+          </kbd>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          Press Option + Space to start/stop recording. You can also click the
+          dictation bar at the bottom of your screen.
+        </p>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@
 
 Napi::Value Ping(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
-    std::string msg = openwisprflow::ping();
+    std::string msg = koto::ping();
     return Napi::String::New(env, msg);
 }
 
@@ -16,7 +16,7 @@ Napi::Value Ping(const Napi::CallbackInfo& info) {
 
 Napi::Value GetSystemInfo(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
-    auto si = openwisprflow::get_system_info();
+    auto si = koto::get_system_info();
 
     Napi::Object obj = Napi::Object::New(env);
     obj.Set("platform",     Napi::String::New(env, si.platform));
@@ -44,7 +44,7 @@ Napi::Value Compute(const Napi::CallbackInfo& info) {
     }
 
     double input = info[0].As<Napi::Number>().DoubleValue();
-    auto cr = openwisprflow::compute(input);
+    auto cr = koto::compute(input);
 
     Napi::Object obj = Napi::Object::New(env);
     obj.Set("result", Napi::Number::New(env, cr.result));
@@ -69,7 +69,7 @@ Napi::Value InitWhisper(const Napi::CallbackInfo& info) {
         return env.Null();
     }
 
-    bool success = openwisprflow::init_whisper(model_path);
+    bool success = koto::init_whisper(model_path);
     return Napi::Boolean::New(env, success);
 }
 
@@ -100,7 +100,7 @@ Napi::Value TranscribeAudio(const Napi::CallbackInfo& info) {
     float* data = reinterpret_cast<float*>(audio_array.ArrayBuffer().Data()) + audio_array.ByteOffset() / sizeof(float);
     std::vector<float> audio_samples(data, data + length);
 
-    auto result = openwisprflow::transcribe_audio(audio_samples, language);
+    auto result = koto::transcribe_audio(audio_samples, language);
 
     Napi::Object obj = Napi::Object::New(env);
     obj.Set("text", Napi::String::New(env, result.text));
@@ -114,7 +114,7 @@ Napi::Value TranscribeAudio(const Napi::CallbackInfo& info) {
 
 Napi::Value CleanupWhisper(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
-    openwisprflow::cleanup_whisper();
+    koto::cleanup_whisper();
     return env.Undefined();
 }
 
@@ -130,4 +130,4 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     return exports;
 }
 
-NODE_API_MODULE(openwisprflow_native, Init)
+NODE_API_MODULE(koto_native, Init)

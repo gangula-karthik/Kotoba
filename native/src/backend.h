@@ -5,7 +5,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace openwisprflow {
+namespace koto {
 
 // ── System Information ──────────────────────────────────────────────
 
@@ -49,4 +49,4 @@ WhisperResult transcribe_audio(const std::vector<float>& audio_samples, const st
 // Cleanup whisper resources
 void cleanup_whisper();
 
-} // namespace openwisprflow
+} // namespace koto

@@ -21,7 +21,7 @@ const { exec, execSync, execFileSync } = require("child_process");
 // Try to load the native C++ addon
 let native = null;
 try {
-  native = require("../build/Release/openwisprflow_native.node");
+  native = require("../build/Release/koto_native.node");
   console.log("Native C++ addon loaded successfully");
 } catch (err) {
   console.warn("Native addon not found. Run 'npm run native:build' to compile.");
@@ -30,9 +30,9 @@ try {
 
 const isDev = !app.isPackaged;
 
-let mainWindow = null;
+let mainWindow = null; // dictation bar (always running)
+let settingsWindow = null; // settings window (opened on demand)
 let tray = null;
-let isOnboarding = false;
 
 // ── Settings store ──────────────────────────────────────────────────
 
@@ -45,7 +45,7 @@ function loadSettings() {
     const data = fs.readFileSync(getSettingsPath(), "utf8");
     return JSON.parse(data);
   } catch {
-    return { language: "en", onboardingCompleted: false };
+    return { language: "en" };
   }
 }
 
@@ -58,56 +58,7 @@ function saveSettings(settings) {
 
 // ── Window creation ──────────────────────────────────────────────────
 
-function createOnboardingWindow() {
-  isOnboarding = true;
-
-  mainWindow = new BrowserWindow({
-    width: 480,
-    height: 520,
-    frame: false,
-    transparent: false,
-    alwaysOnTop: false,
-    skipTaskbar: false,
-    resizable: false,
-    movable: true,
-    hasShadow: true,
-    show: false,
-    focusable: true,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#252525" : "#ffffff",
-    titleBarStyle: "hiddenInset",
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-
-  // Pipe renderer console to terminal in dev
-  if (isDev) {
-    mainWindow.webContents.on("console-message", (_e, level, msg) => {
-      const tag = ["LOG", "WARN", "ERR"][level] || "LOG";
-      console.log(`[renderer:${tag}] ${msg}`);
-    });
-  }
-
-  if (isDev) {
-    mainWindow.loadURL("http://localhost:5173");
-  } else {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
-  }
-
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.center();
-    mainWindow.show();
-  });
-
-  return mainWindow;
-}
-
 function createDictationWindow() {
-  isOnboarding = false;
-
   mainWindow = new BrowserWindow({
     width: 400,
     height: 70,
@@ -127,11 +78,6 @@ function createDictationWindow() {
       sandbox: false,
     },
   });
-
-  // Hide from Dock on macOS
-  if (process.platform === "darwin") {
-    app.dock.hide();
-  }
 
   // Ensure the overlay stays above other windows.
   enforceDictationOverlayZOrder();
@@ -158,12 +104,70 @@ function createDictationWindow() {
   }
 
   if (isDev) {
-    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.loadURL("http://localhost:5173?mode=dictation");
   } else {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"), {
+      query: { mode: "dictation" },
+    });
   }
 
   return mainWindow;
+}
+
+function createSettingsWindow() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.focus();
+    return settingsWindow;
+  }
+
+  settingsWindow = new BrowserWindow({
+    width: 480,
+    height: 520,
+    frame: false,
+    transparent: false,
+    alwaysOnTop: false,
+    skipTaskbar: false,
+    resizable: false,
+    movable: true,
+    hasShadow: true,
+    show: false,
+    focusable: true,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#252525" : "#ffffff",
+    titleBarStyle: "hiddenInset",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  // Pipe renderer console to terminal in dev
+  if (isDev) {
+    settingsWindow.webContents.on("console-message", (_e, level, msg) => {
+      const tag = ["LOG", "WARN", "ERR"][level] || "LOG";
+      console.log(`[settings:${tag}] ${msg}`);
+    });
+  }
+
+  if (isDev) {
+    settingsWindow.loadURL("http://localhost:5173?mode=settings");
+  } else {
+    settingsWindow.loadFile(path.join(__dirname, "../dist/index.html"), {
+      query: { mode: "settings" },
+    });
+  }
+
+  settingsWindow.once("ready-to-show", () => {
+    settingsWindow.center();
+    settingsWindow.show();
+  });
+
+  settingsWindow.on("closed", () => {
+    settingsWindow = null;
+  });
+
+  return settingsWindow;
 }
 
 // ── Window positioning ───────────────────────────────────────────────
@@ -185,22 +189,22 @@ function positionWindowBottomCenter() {
 
 function createTray() {
   let icon;
-  const iconPath = path.join(__dirname, '../assets/tray-icon.png');
+  const iconPath = path.join(__dirname, "../assets/tray-icon.png");
   try {
     icon = nativeImage.createFromPath(iconPath);
   } catch (error) {
-    console.warn('Tray icon file not found at', iconPath, 'using fallback');
-    if (process.platform === 'darwin') {
-      icon = nativeImage.createFromNamedImage("NSImageNameTouchBarRecordStartTemplate");
+    console.warn("Tray icon file not found at", iconPath, "using fallback");
+    if (process.platform === "darwin") {
+      icon = nativeImage.createFromNamedImage(
+        "NSImageNameTouchBarRecordStartTemplate"
+      );
     } else {
-      // For Windows/Linux, use a built-in icon or skip
-      console.warn('No suitable tray icon for platform:', process.platform);
-      // Tray requires an icon; this will fail, but user should add tray-icon.png
+      console.warn("No suitable tray icon for platform:", process.platform);
       return;
     }
   }
   tray = new Tray(icon);
-  tray.setToolTip("OpenWisprFlow - Dictation");
+  tray.setToolTip("Koto - Dictation");
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -210,8 +214,10 @@ function createTray() {
       },
     },
     {
-      label: "Preferences",
-      enabled: false,
+      label: "Settings",
+      click: () => {
+        createSettingsWindow();
+      },
     },
     { type: "separator" },
     {
@@ -228,17 +234,15 @@ function createTray() {
 let isDictating = false;
 let currentTranscription = "";
 let whisperInitialized = false;
-let pendingTranscription = ""; // Store transcription result
+let pendingTranscription = "";
 let hasPromptedAccessibilityThisSession = false;
-let lastFrontmostApp = null; // Best-effort target app for pasting (macOS)
+let lastFrontmostApp = null;
 
 function enforceDictationOverlayZOrder() {
   if (!mainWindow) return;
-  if (isOnboarding) return;
 
   try {
     if (process.platform === "darwin") {
-      // Use a high window level so it doesn't fall behind other apps after interaction.
       mainWindow.setAlwaysOnTop(true, "screen-saver");
     } else {
       mainWindow.setAlwaysOnTop(true);
@@ -280,14 +284,12 @@ function getFrontmostAppMac() {
         ],
         { encoding: "utf8", timeout: 1500 }
       ).trim();
-    } catch {
-      // Some macOS versions reject reading bundle identifier; name-only is still useful.
-    }
+    } catch {}
 
     if (!name) return null;
     return { name, bundleId };
   } catch (error) {
-    console.warn("⚠️ Failed to detect frontmost app:", error.message);
+    console.warn("Failed to detect frontmost app:", error.message);
     return null;
   }
 }
@@ -301,46 +303,40 @@ function activateAppMac(appInfo) {
       execFileSync("open", ["-b", appInfo.bundleId], { timeout: 1500 });
       return;
     }
-  } catch {
-    // Fall through to name-based activation.
-  }
+  } catch {}
 
   try {
     if (appInfo.name) {
       execFileSync("open", ["-a", appInfo.name], { timeout: 1500 });
     }
   } catch (error) {
-    console.warn("⚠️ Failed to activate target app:", error.message);
+    console.warn("Failed to activate target app:", error.message);
   }
 }
 
 // ── Helper functions ────────────────────────────────────────────────
 
 function showPasteNotification(text) {
-  console.log("🔔 Showing paste notification with clipboard content");
+  console.log("Showing paste notification with clipboard content");
   try {
     const notification = new Notification({
-      title: '✅ Transcription Ready',
-      body: 'Text copied to clipboard. Press Cmd+V to paste. Grant Accessibility permission for automatic pasting.',
+      title: "Transcription Ready",
+      body: "Text copied to clipboard. Press Cmd+V to paste. Grant Accessibility permission for automatic pasting.",
       silent: false,
-      timeoutType: 'default'
+      timeoutType: "default",
     });
 
-    notification.on('click', () => {
-      console.log("User clicked notification");
-      // Open accessibility settings
+    notification.on("click", () => {
       if (process.platform === "darwin") {
-        shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+        shell.openExternal(
+          "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        );
       }
     });
 
     notification.show();
-    console.log("✅ Notification shown successfully");
-    console.log(`📋 Transcription copied to clipboard (${text.length} chars): "${text}"`);
   } catch (error) {
-    console.error("❌ Failed to show notification:", error);
-    // Fallback: log to stderr
-    console.error(`Transcription text: "${text}"`);
+    console.error("Failed to show notification:", error);
   }
 }
 
@@ -348,19 +344,16 @@ function ensureMacAccessibilityPermission() {
   if (process.platform !== "darwin") return true;
 
   const isTrusted = systemPreferences.isTrustedAccessibilityClient(false);
-  if (isTrusted) {
-    console.log("✅ Accessibility permission already granted");
-    return true;
-  }
+  if (isTrusted) return true;
 
   if (!hasPromptedAccessibilityThisSession) {
     hasPromptedAccessibilityThisSession = true;
-    console.log("🔐 Requesting accessibility permission...");
     systemPreferences.isTrustedAccessibilityClient(true);
   }
 
-  console.log("⚠️ Accessibility permission required, opening system preferences");
-  shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+  shell.openExternal(
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+  );
   return false;
 }
 
@@ -370,7 +363,7 @@ function startDictation() {
   if (isDictating) return;
   isDictating = true;
   currentTranscription = "";
-  pendingTranscription = ""; // Clear any previous transcription
+  pendingTranscription = "";
   console.log("Dictation started");
 
   if (native && native.initWhisper && !whisperInitialized) {
@@ -378,7 +371,10 @@ function startDictation() {
     if (isDev) {
       modelPath = path.join(__dirname, "../assets/ggml-small.bin");
     } else {
-      modelPath = path.join(__dirname, "../app.asar.unpacked/assets/ggml-small.bin");
+      modelPath = path.join(
+        __dirname,
+        "../app.asar.unpacked/assets/ggml-small.bin"
+      );
     }
 
     console.log(`Loading Whisper model from: ${modelPath}`);
@@ -393,16 +389,12 @@ function stopDictation() {
   if (!isDictating) return;
   isDictating = false;
   console.log("Dictation stopped");
-
-  // TODO: Stop audio recording and process the recorded audio with whisper
-  // For now, we'll keep the mock transcription for testing
 }
 
 function getTranscription() {
   return currentTranscription;
 }
 
-// Transcribe audio data using whisper
 function transcribeAudioData(audioBuffer) {
   if (!native || !native.transcribeAudio) {
     console.error("Native whisper transcribe not available");
@@ -426,8 +418,6 @@ function transcribeAudioData(audioBuffer) {
 // ── IPC Handlers (dictation) ────────────────────────────────────────
 
 ipcMain.handle("dictation:start", async () => {
-  // Capture the current frontmost app as a fallback target for pasting.
-  // Note: paste uses the frontmost app at stop time first; this is a backup.
   lastFrontmostApp = getFrontmostAppMac() || lastFrontmostApp;
   startDictation();
   return true;
@@ -447,15 +437,15 @@ ipcMain.on("dictation:hide", () => {
 });
 
 // Allow renderer to toggle click-through for the bar hover area
-// Never enable click-through during onboarding — window must stay interactive
 ipcMain.on("window:set-ignore-mouse-events", (_event, ignore, opts) => {
   if (!mainWindow) return;
-  if (isOnboarding && ignore) return;
+  // Find which window sent this event
+  const senderWindow = BrowserWindow.fromWebContents(_event.sender);
+  if (senderWindow !== mainWindow) return; // only dictation bar uses click-through
   mainWindow.setIgnoreMouseEvents(ignore, opts || {});
   enforceDictationOverlayZOrder();
 });
 
-// Additional dictation IPC handlers
 ipcMain.on("dictation:toggle", () => {
   if (isDictating) {
     stopDictation();
@@ -467,133 +457,99 @@ ipcMain.on("dictation:toggle", () => {
 ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
   stopDictation();
   let frontmostAtStop = getFrontmostAppMac() || lastFrontmostApp;
-  // If our own process is reported as frontmost, fall back to the last captured external app.
   if (
     process.platform === "darwin" &&
     frontmostAtStop?.name &&
-    (frontmostAtStop.name === app.getName() || frontmostAtStop.name === "Electron")
+    (frontmostAtStop.name === app.getName() ||
+      frontmostAtStop.name === "Electron")
   ) {
     frontmostAtStop = lastFrontmostApp;
   }
   const overrideText = typeof textOverride === "string" ? textOverride : "";
-  const text = overrideText.trim() ? overrideText : pendingTranscription || getTranscription();
-  console.log("stopAndPaste - pendingTranscription:", pendingTranscription);
-  console.log("stopAndPaste - currentTranscription:", currentTranscription);
-  console.log("stopAndPaste - final text to paste:", text);
-  pendingTranscription = ""; // Clear it
+  const text = overrideText.trim()
+    ? overrideText
+    : pendingTranscription || getTranscription();
+  pendingTranscription = "";
 
   if (text && text.trim()) {
-    console.log("✅ Text is valid, proceeding with paste");
-
-    // Keep track of original window state
-    const wasAlwaysOnTop = mainWindow?.isAlwaysOnTop?.();
-
     // Minimize/hide window to ensure focus returns to the background app
     if (mainWindow) {
-      console.log("🔄 Hiding window to return focus to background app");
       mainWindow.hide();
     }
 
-    // Hide the app itself (macOS) so it doesn't accidentally become active
     if (process.platform === "darwin") {
       try {
         app.hide();
       } catch {}
     }
 
-    // Explicitly activate the target app so paste goes to the active cursor
+    // Explicitly activate the target app
     if (process.platform === "darwin") {
       activateAppMac(frontmostAtStop);
     }
 
-    // Longer delay to ensure focus fully transfers
-    console.log("⏳ Waiting 250ms for focus to return to target app...");
     await new Promise((resolve) => setTimeout(resolve, 250));
-    console.log("✅ Focus delay completed");
 
-    // Write to clipboard
-    console.log("📋 Writing to clipboard:", text);
     clipboard.writeText(text);
-    console.log("✅ Clipboard write completed");
 
-    // Small additional delay to ensure clipboard is set
-    console.log("⏳ Waiting 100ms for clipboard...");
     await new Promise((resolve) => setTimeout(resolve, 100));
-    console.log("✅ Clipboard delay completed");
 
     // Use platform-specific paste commands
     if (process.platform === "darwin") {
-      console.log("🍎 Attempting macOS paste via AppleScript");
       try {
         if (!ensureMacAccessibilityPermission()) {
           showPasteNotification(text);
         } else {
-          const appleScript = 'tell application "System Events" to keystroke "v" using {command down}';
-
+          const appleScript =
+            'tell application "System Events" to keystroke "v" using {command down}';
           try {
-            const result = execFileSync("osascript", ["-e", appleScript], {
+            execFileSync("osascript", ["-e", appleScript], {
               encoding: "utf8",
               timeout: 5000,
               stdio: ["pipe", "pipe", "pipe"],
-            }).trim();
-            console.log("✅ AppleScript executed successfully");
-            console.log("📄 AppleScript result:", result);
+            });
           } catch (osError) {
-            console.error("❌ AppleScript execution failed:", osError.message);
-
-            // Check for accessibility permission error
             if (
               osError.message?.includes("osascript is not allowed") ||
               osError.message?.includes("1002") ||
               osError.stderr?.includes("osascript is not allowed") ||
               osError.stderr?.includes("1002")
             ) {
-              console.warn("⚠️ Accessibility permissions required for automatic paste");
               showPasteNotification(text);
             } else {
-              // Unknown error, show notification as fallback
-              console.warn("⚠️ AppleScript error, falling back to notification");
               showPasteNotification(text);
             }
           }
         }
       } catch (error) {
-        console.error("❌ Failed to setup AppleScript:", error);
         showPasteNotification(text);
       }
     } else if (process.platform === "win32") {
-      // On Windows, use PowerShell to simulate Ctrl+V
       try {
         execSync(
           'powershell -command "$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys(\'^v\')"',
           { timeout: 5000 }
         );
-        console.log("✅ Windows paste executed successfully");
       } catch (error) {
-        console.error("❌ Windows paste failed:", error.message);
         showPasteNotification(text);
       }
     } else if (process.platform === "linux") {
-      // On Linux, use xdotool to simulate Ctrl+V
       try {
         execSync("xdotool key ctrl+v", { timeout: 5000 });
-        console.log("✅ Linux paste executed successfully");
       } catch (error) {
-        console.error("❌ Linux paste failed:", error.message);
-        // Fallback: try xclip if xdotool fails
         try {
-          const safeText = text.replace(/"/g, '\\"').replace(/\$/g, '\\$');
-          execSync(`echo "${safeText}" | xclip -selection clipboard`, { timeout: 5000 });
+          const safeText = text.replace(/"/g, '\\"').replace(/\$/g, "\\$");
+          execSync(`echo "${safeText}" | xclip -selection clipboard`, {
+            timeout: 5000,
+          });
           showPasteNotification(text);
         } catch (fallbackError) {
-          console.error("❌ Fallback paste also failed:", fallbackError.message);
           showPasteNotification(text);
         }
       }
     }
 
-    // Restore window state
-    console.log("🔄 Restoring window state");
+    // Restore dictation window
     if (mainWindow) {
       setTimeout(() => {
         if (process.platform === "darwin" && mainWindow?.showInactive) {
@@ -603,7 +559,6 @@ ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
         }
         enforceDictationOverlayZOrder();
         positionWindowBottomCenter();
-        console.log("✅ Window state restored");
       }, 100);
     }
   }
@@ -611,11 +566,11 @@ ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
   return text;
 });
 
-// ── IPC Handlers (existing — kept for compatibility) ─────────────────
+// ── IPC Handlers (native) ────────────────────────────────────────────
 
 ipcMain.handle("native:ping", async () => {
   if (native && native.ping) return native.ping();
-  return "pong (JS fallback — native addon not loaded)";
+  return "pong (JS fallback)";
 });
 
 ipcMain.handle("native:getSystemInfo", async () => {
@@ -638,12 +593,14 @@ ipcMain.handle("native:compute", async (_event, input) => {
 
 ipcMain.handle("whisper:init", async (_event, modelPath) => {
   if (native && native.initWhisper) {
-    // If no path provided, use dynamic resolution
     if (!modelPath) {
       if (isDev) {
         modelPath = path.join(__dirname, "../assets/ggml-small.bin");
       } else {
-        modelPath = path.join(__dirname, "../app.asar.unpacked/assets/ggml-small.bin");
+        modelPath = path.join(
+          __dirname,
+          "../app.asar.unpacked/assets/ggml-small.bin"
+        );
       }
     }
     return native.initWhisper(modelPath);
@@ -657,7 +614,11 @@ ipcMain.handle("whisper:transcribe", async (_event, audioData) => {
     const language = settings.language || "en";
     return native.transcribeAudio(audioData, language);
   }
-  return { text: "", success: false, errorMessage: "Native addon not available" };
+  return {
+    text: "",
+    success: false,
+    errorMessage: "Native addon not available",
+  };
 });
 
 ipcMain.handle("whisper:cleanup", async () => {
@@ -668,8 +629,6 @@ ipcMain.handle("whisper:cleanup", async () => {
 });
 
 ipcMain.handle("whisper:setTranscription", async (_event, text) => {
-  console.log("Setting transcription:", text ? `"${text}"` : "(empty)");
-  // Only set if we have actual text, otherwise clear it
   pendingTranscription = text && text.trim() ? text : "";
   return true;
 });
@@ -682,16 +641,16 @@ ipcMain.handle("app:getPlatform", async () => {
   return process.platform;
 });
 
-// ── Onboarding & Settings IPC Handlers ───────────────────────────────
+// ── Permissions & Settings IPC Handlers ──────────────────────────────
 
-ipcMain.handle("onboarding:getPermissions", async () => {
+ipcMain.handle("permissions:get", async () => {
   const result = { microphone: "not-determined", accessibility: false };
 
   if (process.platform === "darwin") {
     result.microphone = systemPreferences.getMediaAccessStatus("microphone");
-    result.accessibility = systemPreferences.isTrustedAccessibilityClient(false);
+    result.accessibility =
+      systemPreferences.isTrustedAccessibilityClient(false);
   } else {
-    // On non-macOS, assume granted (permissions handled differently)
     result.microphone = "granted";
     result.accessibility = true;
   }
@@ -699,7 +658,7 @@ ipcMain.handle("onboarding:getPermissions", async () => {
   return result;
 });
 
-ipcMain.handle("onboarding:requestMicrophone", async () => {
+ipcMain.handle("permissions:requestMicrophone", async () => {
   if (process.platform === "darwin") {
     await systemPreferences.askForMediaAccess("microphone");
     return systemPreferences.getMediaAccessStatus("microphone");
@@ -707,7 +666,7 @@ ipcMain.handle("onboarding:requestMicrophone", async () => {
   return "granted";
 });
 
-ipcMain.handle("onboarding:requestAccessibility", async () => {
+ipcMain.handle("permissions:requestAccessibility", async () => {
   if (process.platform === "darwin") {
     systemPreferences.isTrustedAccessibilityClient(true);
     return systemPreferences.isTrustedAccessibilityClient(false);
@@ -723,40 +682,9 @@ ipcMain.handle("settings:set", async (_event, partial) => {
   return saveSettings(partial);
 });
 
-ipcMain.handle("onboarding:complete", async (_event, settings) => {
-  saveSettings({ ...settings, onboardingCompleted: true });
-
-  // Request microphone now if not yet granted (macOS)
-  if (process.platform === "darwin") {
-    const micStatus = systemPreferences.getMediaAccessStatus("microphone");
-    if (micStatus !== "granted") {
-      await systemPreferences.askForMediaAccess("microphone");
-    }
-  }
-
-  // Transition from onboarding window to dictation bar
-  if (mainWindow) {
-    mainWindow.destroy();
-    mainWindow = null;
-  }
-
-  createDictationWindow();
-  positionWindowBottomCenter();
-  mainWindow.showInactive();
-  enforceDictationOverlayZOrder();
-
-  // Register global shortcut now
-  if (!globalShortcut.isRegistered("Alt+Space")) {
-    globalShortcut.register("Alt+Space", () => {
-      if (mainWindow) {
-        mainWindow.webContents.send("dictation:toggle");
-      }
-    });
-  }
-});
-
-ipcMain.handle("onboarding:isOnboarding", async () => {
-  return isOnboarding;
+ipcMain.handle("settings:openWindow", async () => {
+  createSettingsWindow();
+  return true;
 });
 
 // ── App Lifecycle ────────────────────────────────────────────────────
@@ -774,57 +702,36 @@ app.whenReady().then(async () => {
     }
   );
 
-  const settings = loadSettings();
-
-  if (settings.onboardingCompleted) {
-    // Normal launch: floating dictation bar
-    // On macOS, request microphone access at the OS level
-    if (process.platform === "darwin") {
-      const micStatus = systemPreferences.getMediaAccessStatus("microphone");
-      if (micStatus !== "granted") {
-        const granted = await systemPreferences.askForMediaAccess("microphone");
-        if (!granted) {
-          console.warn("Microphone access was denied by the user");
-        }
-      }
+  // Request microphone access at OS level on macOS
+  if (process.platform === "darwin") {
+    const micStatus = systemPreferences.getMediaAccessStatus("microphone");
+    if (micStatus !== "granted") {
+      await systemPreferences.askForMediaAccess("microphone");
     }
-
-    createDictationWindow();
-    createTray();
-
-    // Position at bottom center and show immediately
-    positionWindowBottomCenter();
-    mainWindow.showInactive();
-    enforceDictationOverlayZOrder();
-
-    // Register global shortcut: Option+Space toggles recording
-    const registered = globalShortcut.register("Alt+Space", () => {
-      if (mainWindow) {
-        mainWindow.webContents.send("dictation:toggle");
-      }
-    });
-
-    if (!registered) {
-      console.warn("Failed to register Alt+Space shortcut");
-    }
-  } else {
-    // First launch: show onboarding
-    createOnboardingWindow();
-    createTray();
   }
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      const s = loadSettings();
-      if (s.onboardingCompleted) {
-        createDictationWindow();
-        positionWindowBottomCenter();
-        mainWindow.showInactive();
-        enforceDictationOverlayZOrder();
-      } else {
-        createOnboardingWindow();
-      }
+  // Always create the dictation bar
+  createDictationWindow();
+  createTray();
+
+  positionWindowBottomCenter();
+  mainWindow.showInactive();
+  enforceDictationOverlayZOrder();
+
+  // Register global shortcut: Option+Space toggles recording
+  const registered = globalShortcut.register("Alt+Space", () => {
+    if (mainWindow) {
+      mainWindow.webContents.send("dictation:toggle");
     }
+  });
+
+  if (!registered) {
+    console.warn("Failed to register Alt+Space shortcut");
+  }
+
+  // Clicking the dock icon opens the settings window
+  app.on("activate", () => {
+    createSettingsWindow();
   });
 });
 

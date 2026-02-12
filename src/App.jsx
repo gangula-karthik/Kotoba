@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MicVAD } from "@ricky0123/vad-web";
 import AudioWave from "./components/AudioWave";
-import Onboarding from "./components/Onboarding";
+import Settings from "./components/Settings";
 
 function getSystemTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -14,8 +14,12 @@ function applyTheme(theme) {
   document.documentElement.classList.toggle("dark", resolved === "dark");
 }
 
+function getWindowMode() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("mode") || "dictation";
+}
+
 export default function App() {
-  const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
   const [isRecording, setIsRecording] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -26,16 +30,9 @@ export default function App() {
   const audioChunksRef = useRef([]);
   const audioContextRef = useRef(null);
   const vadRef = useRef(null);
-  const transcriptionRef = useRef(""); // Store transcription result
+  const transcriptionRef = useRef("");
 
-  // Check if we should show onboarding
-  useEffect(() => {
-    if (!window.electronAPI?.isOnboarding) {
-      setShowOnboarding(false);
-      return;
-    }
-    window.electronAPI.isOnboarding().then((val) => setShowOnboarding(val));
-  }, []);
+  const windowMode = getWindowMode();
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -54,28 +51,25 @@ export default function App() {
   const startRecording = useCallback(async () => {
     if (isRecordingRef.current) return;
     try {
-      // Create AudioContext inside user gesture so it starts in "running" state
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       audioContextRef.current = audioCtx;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Start capturing audio data
       audioChunksRef.current = [];
       const recorder = new MediaRecorder(stream);
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
-      recorder.start(250); // collect chunks every 250ms
+      recorder.start(250);
       mediaRecorderRef.current = recorder;
 
       if (window.electronAPI) window.electronAPI.startRecording();
       setIsRecording(true);
       isSpeakingRef.current = false;
-      setIsSpeaking(false); // start paused, VAD will activate on real speech
+      setIsSpeaking(false);
 
-      // Initialize VAD for auto pause/resume
       try {
         const vad = await MicVAD.new({
           baseAssetPath: "/",
@@ -89,8 +83,8 @@ export default function App() {
           pauseStream: async () => {},
           resumeStream: async () => stream,
           onSpeechStart: () => {
-            isSpeakingRef.current = true; // instant — read by animation loop
-            setIsSpeaking(true); // triggers opacity transition
+            isSpeakingRef.current = true;
+            setIsSpeaking(true);
             if (mediaRecorderRef.current?.state === "paused") {
               mediaRecorderRef.current.resume();
             }
@@ -111,14 +105,13 @@ export default function App() {
           },
         });
         vadRef.current = vad;
-        // Pause recorder now that VAD is ready — let VAD resume on speech
         if (mediaRecorderRef.current?.state === "recording") {
           mediaRecorderRef.current.pause();
         }
       } catch (vadErr) {
         console.warn("VAD init failed, recording without VAD:", vadErr);
         isSpeakingRef.current = true;
-        setIsSpeaking(true); // fallback: record everything if VAD fails
+        setIsSpeaking(true);
       }
     } catch (err) {
       console.error("Microphone access denied:", err);
@@ -128,13 +121,11 @@ export default function App() {
   const stopRecording = useCallback(async () => {
     if (!isRecordingRef.current) return;
 
-    // Destroy VAD first (before stopping the stream it depends on)
     if (vadRef.current) {
       vadRef.current.destroy().catch(() => {});
       vadRef.current = null;
     }
 
-    // Stop the MediaRecorder and collect final audio (and wait for transcription)
     const recorder = mediaRecorderRef.current;
     let finalText = transcriptionRef.current || "";
     if (recorder && recorder.state !== "inactive") {
@@ -145,20 +136,16 @@ export default function App() {
             `Audio recorded: ${(blob.size / 1024).toFixed(1)} KB, type: ${blob.mimeType}`
           );
 
-          // Convert blob to Float32Array for whisper
           try {
             const arrayBuffer = await blob.arrayBuffer();
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-            // Convert to mono and resample to 16kHz if needed
             const sampleRate = audioBuffer.sampleRate;
-            const channelData = audioBuffer.getChannelData(0); // Use first channel (mono)
+            const channelData = audioBuffer.getChannelData(0);
 
-            // Whisper expects 16kHz float samples
             let audioData = channelData;
             if (sampleRate !== 16000) {
-              // Simple resampling (for better quality, use a proper resampler)
               const ratio = 16000 / sampleRate;
               const newLength = Math.floor(channelData.length * ratio);
               audioData = new Float32Array(newLength);
@@ -176,7 +163,6 @@ export default function App() {
               }
             }
 
-            // Send to main process for transcription
             if (window.electronAPI) {
               const result = await window.electronAPI.transcribeAudio(audioData);
               if (result.success) {
@@ -204,7 +190,6 @@ export default function App() {
       recorder.stop();
       mediaRecorderRef.current = null;
 
-      // Wait for transcription to finish before pasting.
       await transcriptionDone;
     }
 
@@ -230,17 +215,19 @@ export default function App() {
     }
   }, [startRecording, stopRecording]);
 
-  // Listen for toggle events from main process (Alt+Space) — stable, never re-registers
+  // Listen for toggle events from main process (Alt+Space)
   useEffect(() => {
+    if (windowMode !== "dictation") return;
     if (!window.electronAPI) return;
     const cleanupToggle = window.electronAPI.onToggleRecording(() => {
       toggleRecording();
     });
     return () => cleanupToggle();
-  }, [toggleRecording]);
+  }, [toggleRecording, windowMode]);
 
   // Option key hold to record (push-to-talk)
   useEffect(() => {
+    if (windowMode !== "dictation") return;
     const handleKeyDown = (e) => {
       if (e.key === "Alt" && !isRecordingRef.current) {
         e.preventDefault();
@@ -259,10 +246,11 @@ export default function App() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [startRecording, stopRecording]);
+  }, [startRecording, stopRecording, windowMode]);
 
   // Force-stop from main process
   useEffect(() => {
+    if (windowMode !== "dictation") return;
     if (!window.electronAPI?.onForceStop) return;
     const cleanup = window.electronAPI.onForceStop(() => {
       if (streamRef.current) {
@@ -272,7 +260,7 @@ export default function App() {
       setIsRecording(false);
     });
     return () => cleanup();
-  }, []);
+  }, [windowMode]);
 
   // --- Hover / click-through logic ---
   const handleMouseEnter = useCallback(() => {
@@ -295,23 +283,21 @@ export default function App() {
     toggleRecording();
   }, [toggleRecording]);
 
-  // When recording stops, re-enable click-through if not hovered.
-  // Only applies to the dictation bar window (showOnboarding === false).
+  // When recording stops, re-enable click-through if not hovered
   useEffect(() => {
-    if (showOnboarding !== false) return;
+    if (windowMode !== "dictation") return;
     if (!isRecording && !isHovered && window.electronAPI) {
       window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
     }
-  }, [isRecording, isHovered, showOnboarding]);
+  }, [isRecording, isHovered, windowMode]);
 
-  // Determine visual state
+  // Settings window
+  if (windowMode === "settings") {
+    return <Settings />;
+  }
+
+  // Dictation bar
   const state = isRecording ? "recording" : isHovered ? "hover" : "idle";
-
-  // Loading state
-  if (showOnboarding === null) return null;
-
-  // Onboarding mode — the main process created a larger, focusable window
-  if (showOnboarding) return <Onboarding />;
 
   return (
     <div className="dictation-wrapper">
@@ -325,7 +311,7 @@ export default function App() {
 
         {state === "hover" && (
           <span className="dictation-bar__hint">
-            Click or hold <kbd>⌥</kbd> to start
+            Click or hold <kbd>&#x2325;</kbd> to start
           </span>
         )}
 

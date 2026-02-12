@@ -47,12 +47,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getTheme: () => ipcRenderer.invoke("app:getTheme"),
   getPlatform: () => ipcRenderer.invoke("app:getPlatform"),
 
-  // Onboarding & Settings APIs
-  getPermissions: () => ipcRenderer.invoke("onboarding:getPermissions"),
-  requestMicrophone: () => ipcRenderer.invoke("onboarding:requestMicrophone"),
-  requestAccessibility: () => ipcRenderer.invoke("onboarding:requestAccessibility"),
+  // Permissions
+  getPermissions: () => ipcRenderer.invoke("permissions:get"),
+  requestMicrophone: () => ipcRenderer.invoke("permissions:requestMicrophone"),
+  requestAccessibility: () => ipcRenderer.invoke("permissions:requestAccessibility"),
+
+  // Settings
   getSettings: () => ipcRenderer.invoke("settings:get"),
   setSettings: (settings) => ipcRenderer.invoke("settings:set", settings),
-  completeOnboarding: (settings) => ipcRenderer.invoke("onboarding:complete", settings),
-  isOnboarding: () => ipcRenderer.invoke("onboarding:isOnboarding"),
+  openSettings: () => ipcRenderer.invoke("settings:openWindow"),
 });
