@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
@@ -128,6 +129,9 @@ function LanguageDropdown({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+  const [anchorRect, setAnchorRect] = useState(null);
   const listRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -146,18 +150,36 @@ function LanguageDropdown({ value, onChange }) {
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      const isOutsideContainer = containerRef.current && !containerRef.current.contains(e.target);
+      const isOutsideMenu = menuRef.current && !menuRef.current.contains(e.target);
+      if (isOutsideContainer && isOutsideMenu) {
         setOpen(false);
         setSearch("");
       }
     };
+    const onScrollOrResize = () => {
+      if (buttonRef.current) setAnchorRect(buttonRef.current.getBoundingClientRect());
+    };
+
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
   }, [open]);
 
   useEffect(() => {
     if (open && searchRef.current) {
       searchRef.current.focus();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && buttonRef.current) {
+      setAnchorRect(buttonRef.current.getBoundingClientRect());
     }
   }, [open]);
 
@@ -173,6 +195,7 @@ function LanguageDropdown({ value, onChange }) {
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between border border-input bg-transparent px-3 py-2 text-sm rounded-md cursor-pointer hover:bg-secondary/50 transition-colors"
@@ -182,9 +205,19 @@ function LanguageDropdown({ value, onChange }) {
           className={`size-4 opacity-50 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
-
-      {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 border border-border bg-popover text-popover-foreground rounded-md shadow-md overflow-hidden">
+      {open && anchorRect && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: "fixed",
+            left: Math.max(8, anchorRect.left) + "px",
+            top: anchorRect.bottom + "px",
+            width: Math.max(200, anchorRect.width) + "px",
+            maxHeight: "12rem",
+            zIndex: 9999,
+          }}
+          className="border border-border bg-popover text-popover-foreground rounded-md shadow-md overflow-hidden"
+        >
           <div className="p-1.5">
             <Input
               ref={searchRef}
@@ -229,7 +262,8 @@ function LanguageDropdown({ value, onChange }) {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
