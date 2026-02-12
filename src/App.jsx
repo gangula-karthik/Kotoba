@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MicVAD } from "@ricky0123/vad-web";
 import AudioWave from "./components/AudioWave";
+import Onboarding from "./components/Onboarding";
 
 function getSystemTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -14,6 +15,7 @@ function applyTheme(theme) {
 }
 
 export default function App() {
+  const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
   const [isRecording, setIsRecording] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -25,6 +27,15 @@ export default function App() {
   const audioContextRef = useRef(null);
   const vadRef = useRef(null);
   const transcriptionRef = useRef(""); // Store transcription result
+
+  // Check if we should show onboarding
+  useEffect(() => {
+    if (!window.electronAPI?.isOnboarding) {
+      setShowOnboarding(false);
+      return;
+    }
+    window.electronAPI.isOnboarding().then((val) => setShowOnboarding(val));
+  }, []);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -284,15 +295,23 @@ export default function App() {
     toggleRecording();
   }, [toggleRecording]);
 
-  // When recording stops, re-enable click-through if not hovered
+  // When recording stops, re-enable click-through if not hovered.
+  // Only applies to the dictation bar window (showOnboarding === false).
   useEffect(() => {
+    if (showOnboarding !== false) return;
     if (!isRecording && !isHovered && window.electronAPI) {
       window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
     }
-  }, [isRecording, isHovered]);
+  }, [isRecording, isHovered, showOnboarding]);
 
   // Determine visual state
   const state = isRecording ? "recording" : isHovered ? "hover" : "idle";
+
+  // Loading state
+  if (showOnboarding === null) return null;
+
+  // Onboarding mode — the main process created a larger, focusable window
+  if (showOnboarding) return <Onboarding />;
 
   return (
     <div className="dictation-wrapper">

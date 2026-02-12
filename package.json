@@ -13,6 +13,7 @@
     "electron:build": "vite build && electron-builder",
     "native:build": "node-gyp rebuild",
     "native:clean": "node-gyp clean",
+    "whisper:build": "node scripts/build-whisper.js",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -41,6 +42,7 @@
   "build": {
     "appId": "com.openwisprflow.app",
     "productName": "OpenWisprFlow",
+    "icon": "dither_it_emojis.com wizard-bear.png",
     "directories": {
       "output": "dist-electron"
     },

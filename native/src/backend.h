@@ -44,7 +44,7 @@ struct WhisperResult {
 bool init_whisper(const std::string& model_path = "models/ggml-small.bin");
 
 // Process audio data (expects 16kHz float samples)
-WhisperResult transcribe_audio(const std::vector<float>& audio_samples);
+WhisperResult transcribe_audio(const std::vector<float>& audio_samples, const std::string& language = "en");
 
 // Cleanup whisper resources
 void cleanup_whisper();

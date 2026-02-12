@@ -125,7 +125,7 @@ bool init_whisper(const std::string& model_path) {
     return true;
 }
 
-WhisperResult transcribe_audio(const std::vector<float>& audio_samples) {
+WhisperResult transcribe_audio(const std::vector<float>& audio_samples, const std::string& language) {
     if (!g_whisper_initialized || g_whisper_ctx == nullptr) {
         return {"", false, "Whisper not initialized"};
     }
@@ -141,7 +141,7 @@ WhisperResult transcribe_audio(const std::vector<float>& audio_samples) {
     wparams.print_timestamps = false;
     wparams.print_special    = false;
     wparams.translate        = false;
-    wparams.language         = "en";  // English
+    wparams.language         = language.c_str();
     wparams.n_threads        = std::min(4, get_cpu_cores());  // Use up to 4 threads
     wparams.offset_ms        = 0;
     wparams.duration_ms      = 0;    // Process entire audio

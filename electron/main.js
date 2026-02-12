@@ -15,6 +15,7 @@ const {
   shell,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { exec, execSync, execFileSync } = require("child_process");
 
 // Try to load the native C++ addon
@@ -31,10 +32,82 @@ const isDev = !app.isPackaged;
 
 let mainWindow = null;
 let tray = null;
+let isOnboarding = false;
+
+// ── Settings store ──────────────────────────────────────────────────
+
+function getSettingsPath() {
+  return path.join(app.getPath("userData"), "settings.json");
+}
+
+function loadSettings() {
+  try {
+    const data = fs.readFileSync(getSettingsPath(), "utf8");
+    return JSON.parse(data);
+  } catch {
+    return { language: "en", onboardingCompleted: false };
+  }
+}
+
+function saveSettings(settings) {
+  const current = loadSettings();
+  const merged = { ...current, ...settings };
+  fs.writeFileSync(getSettingsPath(), JSON.stringify(merged, null, 2));
+  return merged;
+}
 
 // ── Window creation ──────────────────────────────────────────────────
 
-function createWindow() {
+function createOnboardingWindow() {
+  isOnboarding = true;
+
+  mainWindow = new BrowserWindow({
+    width: 480,
+    height: 520,
+    frame: false,
+    transparent: false,
+    alwaysOnTop: false,
+    skipTaskbar: false,
+    resizable: false,
+    movable: true,
+    hasShadow: true,
+    show: false,
+    focusable: true,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#252525" : "#ffffff",
+    titleBarStyle: "hiddenInset",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  // Pipe renderer console to terminal in dev
+  if (isDev) {
+    mainWindow.webContents.on("console-message", (_e, level, msg) => {
+      const tag = ["LOG", "WARN", "ERR"][level] || "LOG";
+      console.log(`[renderer:${tag}] ${msg}`);
+    });
+  }
+
+  if (isDev) {
+    mainWindow.loadURL("http://localhost:5173");
+  } else {
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+  }
+
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.center();
+    mainWindow.show();
+  });
+
+  return mainWindow;
+}
+
+function createDictationWindow() {
+  isOnboarding = false;
+
   mainWindow = new BrowserWindow({
     width: 400,
     height: 70,
@@ -45,8 +118,8 @@ function createWindow() {
     resizable: false,
     movable: false,
     hasShadow: false,
-    show: false, // Don't show immediately
-    focusable: false, // Don't allow focus
+    show: false,
+    focusable: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -60,6 +133,9 @@ function createWindow() {
     app.dock.hide();
   }
 
+  // Ensure the overlay stays above other windows.
+  enforceDictationOverlayZOrder();
+
   // Allow clicks to pass through transparent areas
   mainWindow.setIgnoreMouseEvents(true, { forward: true });
 
@@ -69,6 +145,9 @@ function createWindow() {
 
   // Keep window visible across all workspaces/spaces
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+  // Re-assert after flags are applied.
+  enforceDictationOverlayZOrder();
 
   // Pipe renderer console to terminal in dev
   if (isDev) {
@@ -105,9 +184,21 @@ function positionWindowBottomCenter() {
 // ── Tray icon ────────────────────────────────────────────────────────
 
 function createTray() {
-  const icon = nativeImage.createFromNamedImage(
-    "NSImageNameTouchBarRecordStartTemplate"
-  );
+  let icon;
+  const iconPath = path.join(__dirname, '../assets/tray-icon.png');
+  try {
+    icon = nativeImage.createFromPath(iconPath);
+  } catch (error) {
+    console.warn('Tray icon file not found at', iconPath, 'using fallback');
+    if (process.platform === 'darwin') {
+      icon = nativeImage.createFromNamedImage("NSImageNameTouchBarRecordStartTemplate");
+    } else {
+      // For Windows/Linux, use a built-in icon or skip
+      console.warn('No suitable tray icon for platform:', process.platform);
+      // Tray requires an icon; this will fail, but user should add tray-icon.png
+      return;
+    }
+  }
   tray = new Tray(icon);
   tray.setToolTip("OpenWisprFlow - Dictation");
 
@@ -140,6 +231,32 @@ let whisperInitialized = false;
 let pendingTranscription = ""; // Store transcription result
 let hasPromptedAccessibilityThisSession = false;
 let lastFrontmostApp = null; // Best-effort target app for pasting (macOS)
+
+function enforceDictationOverlayZOrder() {
+  if (!mainWindow) return;
+  if (isOnboarding) return;
+
+  try {
+    if (process.platform === "darwin") {
+      // Use a high window level so it doesn't fall behind other apps after interaction.
+      mainWindow.setAlwaysOnTop(true, "screen-saver");
+    } else {
+      mainWindow.setAlwaysOnTop(true);
+    }
+  } catch {}
+
+  try {
+    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  } catch {}
+
+  try {
+    mainWindow.setFocusable(false);
+  } catch {}
+
+  try {
+    mainWindow.setSkipTaskbar(true);
+  } catch {}
+}
 
 function getFrontmostAppMac() {
   if (process.platform !== "darwin") return null;
@@ -330,9 +447,12 @@ ipcMain.on("dictation:hide", () => {
 });
 
 // Allow renderer to toggle click-through for the bar hover area
+// Never enable click-through during onboarding — window must stay interactive
 ipcMain.on("window:set-ignore-mouse-events", (_event, ignore, opts) => {
   if (!mainWindow) return;
+  if (isOnboarding && ignore) return;
   mainWindow.setIgnoreMouseEvents(ignore, opts || {});
+  enforceDictationOverlayZOrder();
 });
 
 // Additional dictation IPC handlers
@@ -481,9 +601,7 @@ ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
         } else {
           mainWindow?.show?.();
         }
-        mainWindow?.setAlwaysOnTop?.(wasAlwaysOnTop !== false);
-        mainWindow?.setFocusable?.(false);
-        mainWindow?.setSkipTaskbar?.(true);
+        enforceDictationOverlayZOrder();
         positionWindowBottomCenter();
         console.log("✅ Window state restored");
       }, 100);
@@ -535,7 +653,9 @@ ipcMain.handle("whisper:init", async (_event, modelPath) => {
 
 ipcMain.handle("whisper:transcribe", async (_event, audioData) => {
   if (native && native.transcribeAudio) {
-    return native.transcribeAudio(audioData);
+    const settings = loadSettings();
+    const language = settings.language || "en";
+    return native.transcribeAudio(audioData, language);
   }
   return { text: "", success: false, errorMessage: "Native addon not available" };
 });
@@ -562,6 +682,83 @@ ipcMain.handle("app:getPlatform", async () => {
   return process.platform;
 });
 
+// ── Onboarding & Settings IPC Handlers ───────────────────────────────
+
+ipcMain.handle("onboarding:getPermissions", async () => {
+  const result = { microphone: "not-determined", accessibility: false };
+
+  if (process.platform === "darwin") {
+    result.microphone = systemPreferences.getMediaAccessStatus("microphone");
+    result.accessibility = systemPreferences.isTrustedAccessibilityClient(false);
+  } else {
+    // On non-macOS, assume granted (permissions handled differently)
+    result.microphone = "granted";
+    result.accessibility = true;
+  }
+
+  return result;
+});
+
+ipcMain.handle("onboarding:requestMicrophone", async () => {
+  if (process.platform === "darwin") {
+    await systemPreferences.askForMediaAccess("microphone");
+    return systemPreferences.getMediaAccessStatus("microphone");
+  }
+  return "granted";
+});
+
+ipcMain.handle("onboarding:requestAccessibility", async () => {
+  if (process.platform === "darwin") {
+    systemPreferences.isTrustedAccessibilityClient(true);
+    return systemPreferences.isTrustedAccessibilityClient(false);
+  }
+  return true;
+});
+
+ipcMain.handle("settings:get", async () => {
+  return loadSettings();
+});
+
+ipcMain.handle("settings:set", async (_event, partial) => {
+  return saveSettings(partial);
+});
+
+ipcMain.handle("onboarding:complete", async (_event, settings) => {
+  saveSettings({ ...settings, onboardingCompleted: true });
+
+  // Request microphone now if not yet granted (macOS)
+  if (process.platform === "darwin") {
+    const micStatus = systemPreferences.getMediaAccessStatus("microphone");
+    if (micStatus !== "granted") {
+      await systemPreferences.askForMediaAccess("microphone");
+    }
+  }
+
+  // Transition from onboarding window to dictation bar
+  if (mainWindow) {
+    mainWindow.destroy();
+    mainWindow = null;
+  }
+
+  createDictationWindow();
+  positionWindowBottomCenter();
+  mainWindow.showInactive();
+  enforceDictationOverlayZOrder();
+
+  // Register global shortcut now
+  if (!globalShortcut.isRegistered("Alt+Space")) {
+    globalShortcut.register("Alt+Space", () => {
+      if (mainWindow) {
+        mainWindow.webContents.send("dictation:toggle");
+      }
+    });
+  }
+});
+
+ipcMain.handle("onboarding:isOnboarding", async () => {
+  return isOnboarding;
+});
+
 // ── App Lifecycle ────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
@@ -577,38 +774,57 @@ app.whenReady().then(async () => {
     }
   );
 
-  // On macOS, request microphone access at the OS level
-  if (process.platform === "darwin") {
-    const micStatus = systemPreferences.getMediaAccessStatus("microphone");
-    if (micStatus !== "granted") {
-      const granted = await systemPreferences.askForMediaAccess("microphone");
-      if (!granted) {
-        console.warn("Microphone access was denied by the user");
+  const settings = loadSettings();
+
+  if (settings.onboardingCompleted) {
+    // Normal launch: floating dictation bar
+    // On macOS, request microphone access at the OS level
+    if (process.platform === "darwin") {
+      const micStatus = systemPreferences.getMediaAccessStatus("microphone");
+      if (micStatus !== "granted") {
+        const granted = await systemPreferences.askForMediaAccess("microphone");
+        if (!granted) {
+          console.warn("Microphone access was denied by the user");
+        }
       }
     }
-  }
 
-  createWindow();
-  createTray();
+    createDictationWindow();
+    createTray();
 
-  // Position at bottom center and show immediately
-  positionWindowBottomCenter();
-  mainWindow.showInactive();
+    // Position at bottom center and show immediately
+    positionWindowBottomCenter();
+    mainWindow.showInactive();
+    enforceDictationOverlayZOrder();
 
-  // Register global shortcut: Option+Space toggles recording
-  const registered = globalShortcut.register("Alt+Space", () => {
-    if (mainWindow) {
-      mainWindow.webContents.send("dictation:toggle");
+    // Register global shortcut: Option+Space toggles recording
+    const registered = globalShortcut.register("Alt+Space", () => {
+      if (mainWindow) {
+        mainWindow.webContents.send("dictation:toggle");
+      }
+    });
+
+    if (!registered) {
+      console.warn("Failed to register Alt+Space shortcut");
     }
-  });
-
-  if (!registered) {
-    console.warn("Failed to register Alt+Space shortcut");
+  } else {
+    // First launch: show onboarding
+    createOnboardingWindow();
+    createTray();
   }
-
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      const s = loadSettings();
+      if (s.onboardingCompleted) {
+        createDictationWindow();
+        positionWindowBottomCenter();
+        mainWindow.showInactive();
+        enforceDictationOverlayZOrder();
+      } else {
+        createOnboardingWindow();
+      }
+    }
   });
 });
 

@@ -46,4 +46,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // App-level queries
   getTheme: () => ipcRenderer.invoke("app:getTheme"),
   getPlatform: () => ipcRenderer.invoke("app:getPlatform"),
+
+  // Onboarding & Settings APIs
+  getPermissions: () => ipcRenderer.invoke("onboarding:getPermissions"),
+  requestMicrophone: () => ipcRenderer.invoke("onboarding:requestMicrophone"),
+  requestAccessibility: () => ipcRenderer.invoke("onboarding:requestAccessibility"),
+  getSettings: () => ipcRenderer.invoke("settings:get"),
+  setSettings: (settings) => ipcRenderer.invoke("settings:set", settings),
+  completeOnboarding: (settings) => ipcRenderer.invoke("onboarding:complete", settings),
+  isOnboarding: () => ipcRenderer.invoke("onboarding:isOnboarding"),
 });

@@ -89,12 +89,18 @@ Napi::Value TranscribeAudio(const Napi::CallbackInfo& info) {
         return env.Null();
     }
 
+    // Optional second argument: language code (defaults to "en")
+    std::string language = "en";
+    if (info.Length() >= 2 && info[1].IsString()) {
+        language = info[1].As<Napi::String>().Utf8Value();
+    }
+
     // Convert TypedArray to std::vector<float>
     size_t length = audio_array.ElementLength();
     float* data = reinterpret_cast<float*>(audio_array.ArrayBuffer().Data()) + audio_array.ByteOffset() / sizeof(float);
     std::vector<float> audio_samples(data, data + length);
 
-    auto result = openwisprflow::transcribe_audio(audio_samples);
+    auto result = openwisprflow::transcribe_audio(audio_samples, language);
 
     Napi::Object obj = Napi::Object::New(env);
     obj.Set("text", Napi::String::New(env, result.text));
