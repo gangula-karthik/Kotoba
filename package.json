@@ -2,7 +2,10 @@
   "name": "koto",
   "version": "1.0.0",
   "description": "Koto - Speech-to-Text Dictation App",
-  "author": "Karthik Gangula",
+  "author": {
+    "name": "Karthik Gangula",
+    "email": "karthik@users.noreply.github.com"
+  },
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -80,6 +83,7 @@
       ]
     },
     "linux": {
+      "maintainer": "Karthik <karthik@users.noreply.github.com>",
       "target": [
         "AppImage",
         "deb"
