@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,12 +31,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential python3 pkg-config cmake libgtk-3-0 libx11-6 libx11-dev libxkbfile1 libsecret-1-0 libnss3
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Ensure whisper.cpp is present
+        run: |
+          if [ ! -d native/src/whisper.cpp ] || [ ! -f native/src/whisper.cpp/include/whisper.h ]; then
+            echo "whisper.cpp not found — cloning..."
+            rm -rf native/src/whisper.cpp
+            git clone --depth 1 https://github.com/ggerganov/whisper.cpp native/src/whisper.cpp
+          else
+            echo "whisper.cpp present"
+          fi
 
-      - name: Build whisper (if applicable)
+      - name: Build whisper (required)
         run: npm run whisper:build
-        continue-on-error: true
+
+      - name: Install dependencies
+        env:
+          NPM_CONFIG_PRODUCTION: 'false'
+        run: npm ci
 
       - name: Build native addon
         run: npm run native:build
@@ -66,12 +79,24 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Ensure whisper.cpp is present (Windows)
+        shell: powershell
+        run: |
+          if (!(Test-Path -Path 'native/src/whisper.cpp' -PathType Container) -or !(Test-Path -Path 'native/src/whisper.cpp/include/whisper.h' -PathType Leaf)) {
+            Write-Host 'whisper.cpp not found — cloning...'
+            Remove-Item -Recurse -Force 'native/src/whisper.cpp' -ErrorAction SilentlyContinue
+            git clone --depth 1 https://github.com/ggerganov/whisper.cpp 'native/src/whisper.cpp'
+          } else {
+            Write-Host 'whisper.cpp present'
+          }
 
-      - name: Build whisper (if applicable)
+      - name: Build whisper (required)
         run: npm run whisper:build
-        continue-on-error: true
+
+      - name: Install dependencies
+        env:
+          NPM_CONFIG_PRODUCTION: 'false'
+        run: npm ci
 
       - name: Build native addon
         run: npm run native:build
@@ -103,12 +128,23 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Ensure whisper.cpp is present (macOS)
+        run: |
+          if [ ! -d native/src/whisper.cpp ] || [ ! -f native/src/whisper.cpp/include/whisper.h ]; then
+            echo "whisper.cpp not found — cloning..."
+            rm -rf native/src/whisper.cpp
+            git clone --depth 1 https://github.com/ggerganov/whisper.cpp native/src/whisper.cpp
+          else
+            echo "whisper.cpp present"
+          fi
 
-      - name: Build whisper (if applicable)
+      - name: Build whisper (required)
         run: npm run whisper:build
-        continue-on-error: true
+
+      - name: Install dependencies
+        env:
+          NPM_CONFIG_PRODUCTION: 'false'
+        run: npm ci
 
       - name: Build native addon
         run: npm run native:build

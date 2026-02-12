@@ -6,7 +6,12 @@
 #include <memory>
 
 #ifdef _WIN32
+// Prevent windows.h from defining macros for `min`/`max` which break std::min/std::max
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
+#include <algorithm>
 #elif __APPLE__
 #include <sys/sysctl.h>
 #include <sys/types.h>
