@@ -60,6 +60,8 @@ jobs:
         run: npm run whisper:build
 
       - name: Install dependencies
+        env:
+          NPM_CONFIG_PRODUCTION: 'false'
         run: npm ci
 
       - name: Build native addon
