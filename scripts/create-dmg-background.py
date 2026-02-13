@@ -261,7 +261,7 @@ def main():
 
     # Write PNG
     png_data = create_png(WIDTH, HEIGHT, bytes(pixels))
-    out_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'build')
+    out_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'resources')
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, 'dmg-background.png')
     with open(out_path, 'wb') as f:
