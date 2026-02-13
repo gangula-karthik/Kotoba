@@ -88,7 +88,7 @@ export default function App() {
             </Button>
           </a>
 
-          <div className="flex justify-center" style={{ gap: '0.5rem', marginBottom: '1.25rem' }}>
+          <div className="flex justify-center" style={{ gap: '0.5rem', marginTop: '0.75rem', marginBottom: '1.25rem' }}>
             {others.map(([key, platform]) => (
               <a key={key} href={platform.href} target="_blank" rel="noopener noreferrer">
                 <Button
