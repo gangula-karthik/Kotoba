@@ -1,0 +1,47 @@
+# License and Third-Party Notices
+
+**Copyright (c) 2026 [YOUR NAME OR ORGANIZATION]**
+
+## 1. Primary Application License
+The original source code, user interface, assets, and documentation for this application are licensed under the **Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License (CC BY-NC-ND 4.0)**.
+
+### Summary of Restrictions:
+* **Attribution:** You must give appropriate credit to the original author.
+* **Non-Commercial:** You may **not** use this software, or any portion of it, for any commercial purpose (including but not limited to selling the software, using it in a business environment, or using it to generate revenue).
+* **No-Derivatives:** You may **not** distribute modified versions of this software. If you remix, transform, or build upon the material, you may not distribute the modified material.
+* **No Redistribution as Own:** You may not republish this software or its source code as your own product.
+
+To view a full copy of this license, visit: [http://creativecommons.org/licenses/by-nc-nd/4.0/](http://creativecommons.org/licenses/by-nc-nd/4.0/)
+
+---
+
+## 2. Disclaimer of Warranty
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+## 3. Third-Party Software Credits
+This application incorporates the following open-source components. These components are provided under their respective licenses:
+
+### A. Whisper.cpp
+* **Copyright:** (c) 2023 Georgi Gerganov
+* **License:** MIT License
+
+### B. Electron Framework
+* **Copyright:** (c) OpenJS Foundation and Electron contributors
+* **License:** MIT License
+
+### C. Vite
+* **Copyright:** (c) 2019-present, Yuxi (Evan) You and Vite contributors
+* **License:** MIT License
+
+---
+
+## 4. The MIT License (Applied to Third-Party Components)
+*The following license text applies strictly to the third-party components listed in Section 3:*
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
