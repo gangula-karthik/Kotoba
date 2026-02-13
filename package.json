@@ -13,7 +13,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder",
+    "electron:build": "vite build && electron-builder --publish never",
     "native:build": "node-gyp rebuild",
     "native:clean": "node-gyp clean",
     "whisper:build": "node scripts/build-whisper.js",
