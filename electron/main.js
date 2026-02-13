@@ -262,41 +262,66 @@ function enforceDictationOverlayZOrder() {
   } catch {}
 }
 
-function getFrontmostAppMac() {
-  if (process.platform !== "darwin") return null;
-  try {
-    const name = execFileSync(
-      "osascript",
-      [
-        "-e",
-        'tell application "System Events" to get name of first application process whose frontmost is true',
-      ],
-      { encoding: "utf8", timeout: 1500 }
-    ).trim();
-
-    let bundleId = "";
+function getFrontmostApp() {
+  if (process.platform === "darwin") {
     try {
-      bundleId = execFileSync(
+      const name = execFileSync(
         "osascript",
         [
           "-e",
-          'tell application "System Events" to get bundle identifier of first application process whose frontmost is true',
+          'tell application "System Events" to get name of first application process whose frontmost is true',
         ],
         { encoding: "utf8", timeout: 1500 }
       ).trim();
-    } catch {}
 
-    if (!name) return null;
-    return { name, bundleId };
-  } catch (error) {
-    console.warn("Failed to detect frontmost app:", error.message);
-    return null;
+      let bundleId = "";
+      try {
+        bundleId = execFileSync(
+          "osascript",
+          [
+            "-e",
+            'tell application "System Events" to get bundle identifier of first application process whose frontmost is true',
+          ],
+          { encoding: "utf8", timeout: 1500 }
+        ).trim();
+      } catch {}
+
+      if (!name) return null;
+      return { name, bundleId };
+    } catch (error) {
+      console.warn("Failed to detect frontmost app:", error.message);
+      return null;
+    }
   }
+
+  if (process.platform === "win32") {
+    try {
+      const script = `
+Add-Type 'using System; using System.Runtime.InteropServices; using System.Text;
+public class FGWin { [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int c); }';
+$h = [FGWin]::GetForegroundWindow(); $pid = 0; [FGWin]::GetWindowThreadProcessId($h, [ref]$pid) | Out-Null;
+$sb = New-Object Text.StringBuilder 256; [FGWin]::GetWindowText($h, $sb, 256) | Out-Null;
+$p = Get-Process -Id $pid -ErrorAction SilentlyContinue;
+"$($h.ToInt64())|$($p.ProcessName)|$($sb.ToString())"`;
+      const output = execSync(
+        `powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`,
+        { encoding: "utf8", timeout: 3000 }
+      ).trim();
+      const [hwnd, processName, title] = output.split("|");
+      if (!hwnd || hwnd === "0") return null;
+      return { hwnd, name: processName || "", title: title || "" };
+    } catch (error) {
+      console.warn("Failed to detect foreground window:", error.message);
+      return null;
+    }
+  }
+
+  return null;
 }
 
 function appendPasteLog(line) {
   try {
-    const logDir = path.join(app.getPath("home"), "Library", "Logs", "Koto");
+    const logDir = path.join(app.getPath("logs"), "Koto");
     try {
       fs.mkdirSync(logDir, { recursive: true });
     } catch {}
@@ -310,23 +335,35 @@ function appendPasteLog(line) {
   }
 }
 
-function activateAppMac(appInfo) {
-  if (process.platform !== "darwin") return;
+function activateApp(appInfo) {
   if (!appInfo) return;
 
-  try {
-    if (appInfo.bundleId) {
-      execFileSync("open", ["-b", appInfo.bundleId], { timeout: 1500 });
-      return;
-    }
-  } catch {}
+  if (process.platform === "darwin") {
+    try {
+      if (appInfo.bundleId) {
+        execFileSync("open", ["-b", appInfo.bundleId], { timeout: 1500 });
+        return;
+      }
+    } catch {}
 
-  try {
-    if (appInfo.name) {
-      execFileSync("open", ["-a", appInfo.name], { timeout: 1500 });
+    try {
+      if (appInfo.name) {
+        execFileSync("open", ["-a", appInfo.name], { timeout: 1500 });
+      }
+    } catch (error) {
+      console.warn("Failed to activate target app:", error.message);
     }
-  } catch (error) {
-    console.warn("Failed to activate target app:", error.message);
+  } else if (process.platform === "win32") {
+    try {
+      if (appInfo.hwnd) {
+        execSync(
+          `powershell -NoProfile -NonInteractive -Command "Add-Type 'using System; using System.Runtime.InteropServices; public class U32 { [DllImport(\\\"user32.dll\\\")] public static extern bool SetForegroundWindow(IntPtr h); }'; [U32]::SetForegroundWindow([IntPtr]${appInfo.hwnd})"`,
+          { timeout: 3000 }
+        );
+      }
+    } catch (error) {
+      console.warn("Failed to activate target window:", error.message);
+    }
   }
 }
 
@@ -335,9 +372,15 @@ function activateAppMac(appInfo) {
 function showPasteNotification(text) {
   console.log("Showing paste notification with clipboard content");
   try {
+    const pasteKey = process.platform === "darwin" ? "Cmd+V" : "Ctrl+V";
+    const body =
+      process.platform === "darwin"
+        ? `Text copied to clipboard. Press ${pasteKey} to paste. Grant Accessibility permission for automatic pasting.`
+        : `Text copied to clipboard. Press ${pasteKey} to paste.`;
+
     const notification = new Notification({
       title: "Transcription Ready",
-      body: "Text copied to clipboard. Press Cmd+V to paste. Grant Accessibility permission for automatic pasting.",
+      body,
       silent: false,
       timeoutType: "default",
     });
@@ -436,7 +479,7 @@ function transcribeAudioData(audioBuffer) {
 // ── IPC Handlers (dictation) ────────────────────────────────────────
 
 ipcMain.handle("dictation:start", async () => {
-  lastFrontmostApp = getFrontmostAppMac() || lastFrontmostApp;
+  lastFrontmostApp = getFrontmostApp() || lastFrontmostApp;
   startDictation();
   return true;
 });
@@ -464,6 +507,11 @@ ipcMain.on("window:set-ignore-mouse-events", (_event, ignore, opts) => {
   enforceDictationOverlayZOrder();
 });
 
+ipcMain.handle("dictation:captureFrontmostApp", async () => {
+  lastFrontmostApp = getFrontmostApp() || lastFrontmostApp;
+  return lastFrontmostApp;
+});
+
 ipcMain.on("dictation:toggle", () => {
   if (isDictating) {
     stopDictation();
@@ -474,7 +522,7 @@ ipcMain.on("dictation:toggle", () => {
 
 ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
   stopDictation();
-  let frontmostAtStop = getFrontmostAppMac() || lastFrontmostApp;
+  let frontmostAtStop = getFrontmostApp() || lastFrontmostApp;
   if (
     process.platform === "darwin" &&
     frontmostAtStop?.name &&
@@ -504,10 +552,8 @@ ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
     // Log target app and explicit activation attempt (helpful in packaged app)
     appendPasteLog(`stopAndPaste: frontmostAtStop=${JSON.stringify(frontmostAtStop)}`);
     // Explicitly activate the target app
-    if (process.platform === "darwin") {
-      appendPasteLog(`stopAndPaste: activating ${JSON.stringify(frontmostAtStop)}`);
-      activateAppMac(frontmostAtStop);
-    }
+    appendPasteLog(`stopAndPaste: activating ${JSON.stringify(frontmostAtStop)}`);
+    activateApp(frontmostAtStop);
 
     await new Promise((resolve) => setTimeout(resolve, 250));
 
@@ -553,7 +599,7 @@ ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
     } else if (process.platform === "win32") {
       try {
         execSync(
-          'powershell -command "$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys(\'^v\')"',
+          'powershell -NoProfile -NonInteractive -Command "$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys(\'^v\')"',
           { timeout: 5000 }
         );
       } catch (error) {
@@ -578,11 +624,7 @@ ipcMain.handle("dictation:stopAndPaste", async (_event, textOverride) => {
     // Restore dictation window
     if (mainWindow) {
       setTimeout(() => {
-        if (process.platform === "darwin" && mainWindow?.showInactive) {
-          mainWindow.showInactive();
-        } else {
-          mainWindow?.show?.();
-        }
+        mainWindow.showInactive();
         enforceDictationOverlayZOrder();
         positionWindowBottomCenter();
       }, 100);

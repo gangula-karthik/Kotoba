@@ -276,14 +276,16 @@ export default function Settings() {
   });
   const [selectedLanguage, setSelectedLanguage] = useState("en");
   const [saved, setSaved] = useState(false);
+  const [platform, setPlatform] = useState("darwin");
 
-  // Load settings and permissions on mount
+  // Load settings, permissions, and platform on mount
   useEffect(() => {
     if (!window.electronAPI) return;
     window.electronAPI.getPermissions().then(setPermissions);
     window.electronAPI.getSettings().then((s) => {
       if (s.language) setSelectedLanguage(s.language);
     });
+    window.electronAPI.getPlatform().then(setPlatform);
   }, []);
 
   // Poll permissions every 2s to catch changes made in System Preferences
@@ -346,14 +348,16 @@ export default function Settings() {
               onRequest={handleRequestMicrophone}
             />
           </div>
-          <div className="px-3">
-            <PermissionRow
-              label="Accessibility"
-              status={permissions.accessibility ? "granted" : "not granted"}
-              granted={permissions.accessibility}
-              onRequest={handleRequestAccessibility}
-            />
-          </div>
+          {platform === "darwin" && (
+            <div className="px-3">
+              <PermissionRow
+                label="Accessibility"
+                status={permissions.accessibility ? "granted" : "not granted"}
+                granted={permissions.accessibility}
+                onRequest={handleRequestAccessibility}
+              />
+            </div>
+          )}
         </div>
         {!micGranted && (
           <p className="text-xs text-destructive mt-2">
@@ -386,11 +390,11 @@ export default function Settings() {
         <div className="border border-border px-3 py-2 flex items-center justify-between">
           <span className="text-sm text-foreground">Toggle Dictation</span>
           <kbd className="text-xs px-2 py-0.5 border border-border bg-muted text-foreground font-mono">
-            &#x2325; Space
+            {platform === "darwin" ? "\u2325 Space" : "Alt + Space"}
           </kbd>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          Press Option + Space to start/stop recording. You can also click the
+          Press {platform === "darwin" ? "Option" : "Alt"} + Space to start/stop recording. You can also click the
           dictation bar at the bottom of your screen.
         </p>
       </div>

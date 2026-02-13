@@ -34,6 +34,13 @@ export default function App() {
   const transcriptionRef = useRef("");
 
   const windowMode = getWindowMode();
+  const [platform, setPlatform] = useState("darwin");
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.getPlatform().then(setPlatform);
+    }
+  }, []);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -335,7 +342,7 @@ export default function App() {
 
         {state === "hover" && (
           <span className="dictation-bar__hint">
-            Click or hold <kbd>&#x2325;</kbd> to start
+            Click or hold <kbd>{platform === "darwin" ? "\u2325" : "Alt"}</kbd> to start
           </span>
         )}
 
