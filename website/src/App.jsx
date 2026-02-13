@@ -87,9 +87,6 @@ export default function App() {
               Download for {primary.label}
             </Button>
           </a>
-          <span className="text-white/25 block" style={{ fontSize: '0.65rem', margin: '0.5rem 0 1.25rem' }}>
-            builds from CI
-          </span>
 
           <div className="flex justify-center" style={{ gap: '0.5rem', marginBottom: '1.25rem' }}>
             {others.map(([key, platform]) => (
