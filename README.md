@@ -2,7 +2,7 @@
   <img src="website/public/logo.png" alt="Koto" width="120" />
 </p>
 
-<h1 align="center">Koto</h1>
+<h1 align="center">Kotoba</h1>
 
 <p align="center">
   Speech-to-text dictation. Local. Private. Fast.
