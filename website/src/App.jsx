@@ -11,21 +11,21 @@ function getOS() {
   return 'unknown'
 }
 
-const GITHUB_REPO = 'https://github.com/gangula-karthik/OpenWisprFlow'
-const CI_BUILDS = `${GITHUB_REPO}/actions/workflows/ci-build.yml`
+const GITHUB_REPO = 'https://github.com/gangula-karthik/Kotoba'
+const NIGHTLY = 'https://nightly.link/gangula-karthik/Kotoba/workflows/ci-build/main'
 
 const platforms = {
   mac: {
     label: 'macOS',
-    href: CI_BUILDS,
+    href: `${NIGHTLY}/dist-electron-macos.zip`,
   },
   windows: {
     label: 'Windows',
-    href: CI_BUILDS,
+    href: `${NIGHTLY}/dist-electron-windows.zip`,
   },
   linux: {
     label: 'Linux',
-    href: CI_BUILDS,
+    href: `${NIGHTLY}/dist-electron-linux.zip`,
   },
 }
 
